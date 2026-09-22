@@ -1,0 +1,141 @@
+{
+  "name": "RAG Pipeline — Belge → Vektör → AI Cevap",
+  "nodes": [
+    {
+      "id": "webhook-soru",
+      "name": "Soru Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-500, 0],
+      "parameters": { "path": "rag-soru", "httpMethod": "POST", "responseMode": "responseNode" }
+    },
+    {
+      "id": "input-validate",
+      "name": "Input Doğrulama",
+      "type": "n8n-nodes-base.code",
+      "position": [-300, 0],
+      "parameters": {
+        "jsCode": "// Input validation + sanitization\nconst body = $input.all()[0].json;\nconst question = (body.question || '').trim();\nif (!question || question.length < 3) throw new Error('Question too short');\nif (question.length > 2000) throw new Error('Question too long');\n// Sanitize: strip injection attempts\nconst sanitized = question.replace(/ignore previous instructions/gi, '[FILTERED]');\nreturn [{ json: { question: sanitized, session_id: body.session_id || 'default', timestamp: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "embed-query",
+      "name": "Soru Embed",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [-100, 0],
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      }
+    },
+    {
+      "id": "vector-search",
+      "name": "Vektör Arama",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "position": [100, 0],
+      "parameters": {
+        "operation": "search",
+        "collectionName": "company_knowledge",
+        "options": { "topK": 5, "scoreThreshold": 0.7 }
+      }
+    },
+    {
+      "id": "context-rank",
+      "name": "Context Re-ranking",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 0],
+      "parameters": {
+        "jsCode": "// Re-rank retrieved chunks by relevance\nconst docs = $input.all();\nconst ranked = docs.map(d => ({\n  pageContent: d.json.pageContent,\n  metadata: d.json.metadata,\n  score: d.json.score,\n  source: d.json.metadata.source || 'unknown'\n}));\nranked.sort((a, b) => b.score - a.score);\nreturn [{ json: { context: ranked.slice(0, 5), query: $input.all()[0].json.question } }];"
+      }
+    },
+    {
+      "id": "ai-rag-agent",
+      "name": "RAG AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [500, 0],
+      "parameters": {
+        "modelType": "chat",
+        "options": { "temperature": 0.1, "maxTokens": 2000 }
+      }
+    },
+    {
+      "id": "tool-doc-search",
+      "name": "Dokument Arama",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "doc-search-sub",
+        "description": "Şirket belgelerinde arama yap"
+      }
+    },
+    {
+      "id": "tool-citation",
+      "name": "Kaynak Ekle",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "citation-sub",
+        "description": "Cevabın kaynaklarını ekle"
+      }
+    },
+    {
+      "id": "output-parser-rag",
+      "name": "Çıktı Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [700, 0],
+      "parameters": {
+        "schemaType": "jsonSchema",
+        "jsonSchema": "{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"},\"sources\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"url\":{\"type\":\"string\"},\"relevance\":{\"type\":\"number\"}}}},\"confidence\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},\"follow_up_questions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"answer\",\"sources\",\"confidence\"]}"
+      }
+    },
+    {
+      "id": "log-rag",
+      "name": "RAG Log",
+      "type": "n8n-nodes-base.code",
+      "position": [900, 0],
+      "parameters": {
+        "jsCode": "// Log RAG query for analytics\nconst result = $input.all()[0].json;\nconsole.log('RAG Query:', {\n  question: result.question || 'N/A',\n  sources: result.sources?.length || 0,\n  confidence: result.confidence || 0,\n  timestamp: new Date().toISOString()\n});\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "response-rag",
+      "name": "Cevap",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1100, 0],
+      "parameters": {
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Soru Webhook": {
+      "main": [[{ "node": "Input Doğrulama", "type": "main", "index": 0 }]]
+    },
+    "Input Doğrulama": {
+      "main": [[{ "node": "Soru Embed", "type": "main", "index": 0 }]]
+    },
+    "Soru Embed": {
+      "ai_embedding": [[{ "node": "Vektör Arama", "type": "ai_embedding", "index": 0 }]]
+    },
+    "Vektör Arama": {
+      "main": [[{ "node": "Context Re-ranking", "type": "main", "index": 0 }]]
+    },
+    "Context Re-ranking": {
+      "main": [[{ "node": "RAG AI Agent", "type": "main", "index": 0 }]]
+    },
+    "RAG AI Agent": {
+      "ai_languageModel": [[{ "node": "OpenAI Chat Model", "type": "ai_languageModel", "index": 0 }]],
+      "ai_tool": [
+        [{ "node": "Dokument Arama", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Kaynak Ekle", "type": "ai_tool", "index": 0 }]
+      ],
+      "ai_outputParser": [[{ "node": "Çıktı Parser", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Çıktı Parser": {
+      "main": [[{ "node": "RAG Log", "type": "main", "index": 0 }]]
+    },
+    "RAG Log": {
+      "main": [[{ "node": "Cevap", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["rag", "ai-agent", "vector-db", "qdrant", "openai", "knowledge-base"]
+}

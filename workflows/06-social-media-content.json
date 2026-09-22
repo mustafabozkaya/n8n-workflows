@@ -1,0 +1,159 @@
+{
+  "name": "Social Media Content Pipeline — Blog → Multi-Platform",
+  "nodes": [
+    {
+      "id": "webhook-blog",
+      "name": "Blog Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-600, 0],
+      "parameters": { "path": "blog-publish", "httpMethod": "POST", "responseMode": "responseNode" }
+    },
+    {
+      "id": "extract-content",
+      "name": "İçerik Çıkarma",
+      "type": "n8n-nodes-base.code",
+      "position": [-400, 0],
+      "parameters": {
+        "jsCode": "// Extract key content from blog post\nconst post = $input.all()[0].json;\nconst title = post.title || 'Untitled';\nconst excerpt = (post.excerpt || post.content || '').substring(0, 500);\nconst tags = post.tags || [];\nconst url = post.url || '';\nreturn [{ json: { title, excerpt, tags, url, published_at: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "ai-content-agent",
+      "name": "Content Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [-200, 0],
+      "parameters": {
+        "modelType": "chat",
+        "options": { "temperature": 0.7, "maxTokens": 2000 }
+      }
+    },
+    {
+      "id": "tool-hashtag-gen",
+      "name": "Hashtag Üret",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "hashtag-sub",
+        "description": "İçerime uygun hashtag'ler üret"
+      }
+    },
+    {
+      "id": "tool-image-gen",
+      "name": "Görsel Üret",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "image-sub",
+        "description": "Sosyal medya için görsel üret"
+      }
+    },
+    {
+      "id": "split-platforms",
+      "name": "Platformlara Ayır",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [0, 0],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "linkedin-post",
+      "name": "LinkedIn Post",
+      "type": "n8n-nodes-base.linkedIn",
+      "position": [200, -200],
+      "parameters": {
+        "operation": "post",
+        "post": "={{ $json.output }}"
+      }
+    },
+    {
+      "id": "twitter-post",
+      "name": "X (Twitter) Post",
+      "type": "n8n-nodes-base.twitter",
+      "position": [200, 0],
+      "parameters": {
+        "operation": "create",
+        "text": "={{ $json.output }}"
+      }
+    },
+    {
+      "id": "telegram-post",
+      "name": "Telegram Post",
+      "type": "n8n-nodes-base.telegram",
+      "position": [200, 200],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $credentials.telegram.chatId }}",
+        "text": "={{ $json.output }}"
+      }
+    },
+    {
+      "id": "output-social",
+      "name": "Çıktı Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [400, 0],
+      "parameters": {
+        "schemaType": "jsonSchema",
+        "jsonSchema": "{\"type\":\"object\",\"properties\":{\"platform\":{\"type\":\"string\",\"enum\":[\"linkedin\",\"twitter\",\"telegram\"]},\"post_text\":{\"type\":\"string\"},\"hashtags\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"image_url\":{\"type\":\"string\"},\"character_count\":{\"type\":\"number\"},\"scheduled_at\":{\"type\":\"string\",\"format\":\"date-time\"}},\"required\":[\"platform\",\"post_text\"]}"
+      }
+    },
+    {
+      "id": "log-social",
+      "name": "Content Log",
+      "type": "n8n-nodes-base.code",
+      "position": [600, 0],
+      "parameters": {
+        "jsCode": "// Log social media posts for analytics\nconst posts = $input.all();\nconst summary = posts.map(p => ({\n  platform: p.json.platform,\n  chars: p.json.character_count,\n  hashtags: p.json.hashtags?.length || 0,\n  has_image: !!p.json.image_url\n}));\nconsole.log('Social posts:', summary);\nreturn [{ json: { posts: summary, total: summary.length, timestamp: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "response-social",
+      "name": "Cevap",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [800, 0],
+      "parameters": {
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Blog Webhook": {
+      "main": [[{ "node": "İçerik Çıkarma", "type": "main", "index": 0 }]]
+    },
+    "İçerik Çıkarma": {
+      "main": [[{ "node": "Content Agent", "type": "main", "index": 0 }]]
+    },
+    "Content Agent": {
+      "ai_languageModel": [[{ "node": "OpenAI Chat Model", "type": "ai_languageModel", "index": 0 }]],
+      "ai_tool": [
+        [{ "node": "Hashtag Üret", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Görsel Üret", "type": "ai_tool", "index": 0 }]
+      ],
+      "ai_outputParser": [[{ "node": "Çıktı Parser", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Çıktı Parser": {
+      "main": [[{ "node": "Platformlara Ayır", "type": "main", "index": 0 }]]
+    },
+    "Platformlara Ayır": {
+      "main": [
+        [{ "node": "LinkedIn Post", "type": "main", "index": 0 }],
+        [{ "node": "X (Twitter) Post", "type": "main", "index": 0 }],
+        [{ "node": "Telegram Post", "type": "main", "index": 0 }]
+      ]
+    },
+    "LinkedIn Post": {
+      "main": [[{ "node": "Content Log", "type": "main", "index": 0 }]]
+    },
+    "X (Twitter) Post": {
+      "main": [[{ "node": "Content Log", "type": "main", "index": 0 }]]
+    },
+    "Telegram Post": {
+      "main": [[{ "node": "Content Log", "type": "main", "index": 0 }]]
+    },
+    "Content Log": {
+      "main": [[{ "node": "Cevap", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["social-media", "content", "linkedin", "twitter", "telegram", "ai", "automation"]
+}
