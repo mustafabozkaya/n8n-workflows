@@ -1,0 +1,100 @@
+{
+  "name": "GitHub PR → AI Code Review → Slack",
+  "nodes": [
+    {
+      "id": "github-webhook",
+      "name": "GitHub Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-300, 0],
+      "parameters": { "path": "github-pr", "httpMethod": "POST" }
+    },
+    {
+      "id": "filter-pr-opened",
+      "name": "PR Açılış Filtresi",
+      "type": "n8n-nodes-base.if",
+      "position": [-100, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "1",
+              "operator": { "name": "filter.operator.equals", "type": "string", "operation": "equals" },
+              "leftValue": "={{ $json.body.action }}",
+              "rightValue": "opened"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fetch-pr-diff",
+      "name": "PR Diff Çek",
+      "type": "n8n-nodes-base.github",
+      "position": [100, 0],
+      "parameters": {
+        "operation": "get",
+        "owner": "={{ $json.body.repository.owner.login }}",
+        "repository": "={{ $json.body.repository.name }}",
+        "pullNumber": "={{ $json.body.pull_request.number }}"
+      }
+    },
+    {
+      "id": "ai-code-review",
+      "name": "AI Code Review",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [300, 0],
+      "parameters": {
+        "modelType": "chat",
+        "options": { "temperature": 0.1 }
+      }
+    },
+    {
+      "id": "pr-yorum-ekle",
+      "name": "PR'ye Yorum Ekle",
+      "type": "n8n-nodes-base.github",
+      "position": [500, 0],
+      "parameters": {
+        "operation": "createReview",
+        "owner": "={{ $json.body.repository.owner.login }}",
+        "repository": "={{ $json.body.repository.name }}",
+        "pullNumber": "={{ $json.body.pull_request.number }}",
+        "body": "={{ $json.output }}"
+      }
+    },
+    {
+      "id": "slack-review",
+      "name": "Slack Bildirimi",
+      "type": "n8n-nodes-base.slack",
+      "position": [700, 0],
+      "parameters": {
+        "operation": "post",
+        "channel": "#code-review",
+        "text": "🔍 AI Code Review: {{ $json.body.pull_request.title }}"
+      }
+    }
+  ],
+  "connections": {
+    "GitHub Webhook": {
+      "main": [[{ "node": "PR Açılış Filtresi", "type": "main", "index": 0 }]]
+    },
+    "PR Açılış Filtresi": {
+      "main": [
+        [{ "node": "PR Diff Çek", "type": "main", "index": 0 }],
+        [{ "node": "No Op", "type": "main", "index": 0 }]
+      ]
+    },
+    "PR Diff Çek": {
+      "main": [[{ "node": "AI Code Review", "type": "main", "index": 0 }]]
+    },
+    "AI Code Review": {
+      "main": [[{ "node": "PR'ye Yorum Ekle", "type": "main", "index": 0 }]]
+    },
+    "PR'ye Yorum Ekle": {
+      "main": [[{ "node": "Slack Bildirimi", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["github", "code-review", "ai", "automation"]
+}

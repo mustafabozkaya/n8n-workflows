@@ -1,0 +1,70 @@
+{
+  "name": "CRM Lead → Google Sheets → AI Rapor",
+  "nodes": [
+    {
+      "id": "webhook-crm",
+      "name": "CRM Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-300, 0],
+      "parameters": { "path": "crm-lead", "httpMethod": "POST" }
+    },
+    {
+      "id": "dedupe-lead",
+      "name": "Duplicate Kontrol",
+      "type": "n8n-nodes-base.code",
+      "position": [-100, 0],
+      "parameters": {
+        "jsCode": "// Duplicate prevention\nconst lead = $input.all()[0].json;\nconst email = lead.email?.toLowerCase();\nif (!email) throw new Error('Email required');\nlead.idempotency_key = 'lead_' + email + '_' + Date.now();\nreturn [{ json: lead }];"
+      }
+    },
+    {
+      "id": "sheets-ekle",
+      "name": "Google Sheets Ekle",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [100, 0],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "={{ $credentials.googleSheets.sheetId }}",
+        "range": "Leads!A:Z",
+        "options": {}
+      }
+    },
+    {
+      "id": "ai-lead-skor",
+      "name": "AI Lead Skorlama",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [300, 0],
+      "parameters": {
+        "modelType": "chat",
+        "options": { "temperature": 0 }
+      }
+    },
+    {
+      "id": "slack-lead-bildirimi",
+      "name": "Slack Bildirimi",
+      "type": "n8n-nodes-base.slack",
+      "position": [500, 0],
+      "parameters": {
+        "operation": "post",
+        "channel": "#sales-leads",
+        "text": "🆕 Yeni Lead: {{ $json.name }} | Skor: {{ $json.score }}"
+      }
+    }
+  ],
+  "connections": {
+    "CRM Webhook": {
+      "main": [[{ "node": "Duplicate Kontrol", "type": "main", "index": 0 }]]
+    },
+    "Duplicate Kontrol": {
+      "main": [[{ "node": "Google Sheets Ekle", "type": "main", "index": 0 }]]
+    },
+    "Google Sheets Ekle": {
+      "main": [[{ "node": "AI Lead Skorlama", "type": "main", "index": 0 }]]
+    },
+    "AI Lead Skorlama": {
+      "main": [[{ "node": "Slack Bildirimi", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["crm", "lead", "ai", "automation"]
+}

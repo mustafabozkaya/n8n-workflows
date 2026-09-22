@@ -1,0 +1,127 @@
+{
+  "name": "Lojistik AI Agent — Sipariş & Kargo Takip",
+  "nodes": [
+    {
+      "id": "webhook-siparis",
+      "name": "Sipariş Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-400, 0],
+      "parameters": {
+        "path": "siparis-olustu",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "validate-siparis",
+      "name": "Sipariş Doğrulama",
+      "type": "n8n-nodes-base.code",
+      "position": [-200, 0],
+      "parameters": {
+        "jsCode": "// Duplicate prevention + validation\nconst order = $input.all()[0].json;\nconst required = ['order_id', 'customer_id', 'items', 'destination'];\nconst missing = required.filter(f => !order[f]);\nif (missing.length) throw new Error('Missing: ' + missing.join(', '));\norder.idempotency_key = order.order_id + '_' + Date.now();\nreturn [{ json: order }];"
+      }
+    },
+    {
+      "id": "ai-agent-lojistik",
+      "name": "AI Lojistik Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [0, 0],
+      "parameters": {
+        "modelType": "chat",
+        "options": { "temperature": 0.1, "maxTokens": 2000 }
+      }
+    },
+    {
+      "id": "tool-kargo-sorgula",
+      "name": "Kargo Sorgula",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "kargo-sorgula-sub",
+        "description": "Kargo takip numarası ile durum sorgula"
+      }
+    },
+    {
+      "id": "tool-depo-stok",
+      "name": "Depo Stok Kontrol",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "depodan-siparis",
+        "description": "Stok durumunu kontrol et ve tahsis yap"
+      }
+    },
+    {
+      "id": "tool-fiyat-hesapla",
+      "name": "Fiyat & Kargo Hesabı",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "parameters": {
+        "workflowId": "fiyat-hesapla",
+        "description": "Kargo ücretini ve toplam tutarı hesapla"
+      }
+    },
+    {
+      "id": "output-parser",
+      "name": "Çıktı Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [200, 0],
+      "parameters": {
+        "schemaType": "jsonSchema",
+        "jsonSchema": "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"create_shipment\",\"notify_customer\",\"escalate\"]},\"tracking_number\":{\"type\":\"string\"},\"estimated_delivery\":{\"type\":\"string\",\"format\":\"date-time\"},\"cost\":{\"type\":\"number\"},\"message\":{\"type\":\"string\"}},\"required\":[\"action\",\"message\"]}"
+      }
+    },
+    {
+      "id": "error-handler",
+      "name": "Hata Handler",
+      "type": "n8n-nodes-base.code",
+      "position": [400, 200],
+      "parameters": {
+        "jsCode": "// Error handling + retry + logging\nconst error = $input.all()[0];\nconsole.error('Workflow error:', error);\nreturn [{ json: { status: 'error', error: error.json?.error || error, retryable: true, timestamp: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "slack-bildirim",
+      "name": "Slack Bildirimi",
+      "type": "n8n-nodes-base.slack",
+      "position": [600, 0],
+      "parameters": {
+        "operation": "post",
+        "channel": "#lojistik-otomasyon",
+        "text": "={{ $json.action === 'escalate' ? '⚠️ ESCALATE: ' + $json.message : '✅ İşlem tamam: ' + $json.tracking_number }}"
+      }
+    },
+    {
+      "id": "response-node",
+      "name": "Cevap",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [800, 0],
+      "parameters": {
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Sipariş Webhook": {
+      "main": [[{ "node": "Sipariş Doğrulama", "type": "main", "index": 0 }]]
+    },
+    "Sipariş Doğrulama": {
+      "main": [[{ "node": "AI Lojistik Agent", "type": "main", "index": 0 }]]
+    },
+    "AI Lojistik Agent": {
+      "ai_languageModel": [[{ "node": "OpenAI Chat Model", "type": "ai_languageModel", "index": 0 }]],
+      "ai_tool": [
+        [{ "node": "Kargo Sorgula", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Depo Stok Kontrol", "type": "ai_tool", "index": 0 }],
+        [{ "node": "Fiyat & Kargo Hesabı", "type": "ai_tool", "index": 0 }]
+      ],
+      "ai_outputParser": [[{ "node": "Çıktı Parser", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Çıktı Parser": {
+      "main": [[{ "node": "Slack Bildirimi", "type": "main", "index": 0 }]]
+    },
+    "Slack Bildirimi": {
+      "main": [[{ "node": "Cevap", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["lojistik", "ai-agent", "automation", "kargo", "siparis"]
+}
