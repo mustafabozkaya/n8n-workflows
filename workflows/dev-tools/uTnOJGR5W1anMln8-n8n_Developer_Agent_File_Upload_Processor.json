@@ -1,0 +1,324 @@
+{
+  "name": "n8n Developer Agent - File Upload Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "developer-agent",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "3ccfd2c4-2449-4590-90b9-a23ba3d9abe1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "extract-input-data",
+      "name": "Extract Input Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.has_file }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-file-exists",
+      "name": "Check File Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const userQuery = $input.item(0).json.user_query || '';\nconst fileContent = $input.item(0).json.file_content || '';\n\nlet processedContent = '';\n\n// Try to parse as JSON first\ntry {\n  const jsonData = JSON.parse(fileContent);\n  processedContent = JSON.stringify(jsonData, null, 2);\n} catch (e) {\n  // If not JSON, treat as plain text\n  processedContent = fileContent;\n}\n\n// Combine user query with file content\nconst combinedQuery = `${userQuery}\\n\\nFile Content:\\n${processedContent}`;\n\n// Extract URLs from the combined content\nconst urlRegex = /(https?:\\/\\/[^\\s]+)/g;\nconst urls = combinedQuery.match(urlRegex) || [];\n\n// Remove duplicates\nconst uniqueUrls = [...new Set(urls)];\n\nreturn {\n  enhanced_query: `${userQuery} n8n developer agent tarafından iyileştirilmiş hali ${processedContent}`,\n  sources: uniqueUrls,\n  original_query: userQuery,\n  file_content: processedContent\n};"
+      },
+      "id": "process-with-file",
+      "name": "Process With File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const userQuery = $input.item(0).json.user_query || '';\n\n// Extract URLs from user query only\nconst urlRegex = /(https?:\\/\\/[^\\s]+)/g;\nconst urls = userQuery.match(urlRegex) || [];\n\n// Remove duplicates\nconst uniqueUrls = [...new Set(urls)];\n\nreturn {\n  enhanced_query: `${userQuery} n8n developer agent tarafından iyileştirilmiş hali`,\n  sources: uniqueUrls,\n  original_query: userQuery,\n  file_content: ''\n};"
+      },
+      "id": "process-without-file",
+      "name": "Process Without File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "format-output",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://workflow-builder-endpoint.com/api/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"query\": $json.query, \"sources\": $json.sources } }}",
+        "options": {}
+      },
+      "id": "send-to-workflow-builder",
+      "name": "Send to Workflow Builder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🚀 **Developer Agent Başlatıldı**\n\nBu webhook, kullanıcıdan:\n- Metin sorgusu\n- İsteğe bağlı dosya (JSON/Text)\n\nalır ve işleme başlar.\n\n**Beklenen format:**\n```json\n{\n  \"query\": \"kullanıcı sorgusu\",\n  \"file\": \"dosya içeriği (opsiyonel)\"\n}\n```",
+        "width": 280,
+        "color": 4
+      },
+      "id": "sticky-note-1",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        60,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "content": "📋 **Giriş Verilerini Ayıkla**\n\nWebhook'tan gelen veriyi:\n- user_query\n- has_file (boolean)\n- file_content\n\nolarak ayrıştırır.",
+        "height": 120,
+        "color": 5
+      },
+      "id": "sticky-note-2",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🔍 **Dosya Kontrol**\n\nYüklenen dosya var mı?\n- Evet ➡️ Dosya ile işle\n- Hayır ➡️ Sadece sorgu ile işle",
+        "height": 240,
+        "width": 200,
+        "color": 6
+      },
+      "id": "sticky-note-3",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "⚙️ **Dosya ile İşleme**\n\n1. JSON parse deneyen kod\n2. Başarısızsa text olarak işler\n3. Kullanıcı sorgusuyla birleştirir\n4. URL'leri regex ile ayıklar\n5. Zenginleştirilmiş sorgu oluşturur",
+        "height": 260,
+        "width": 300,
+        "color": 3
+      },
+      "id": "sticky-note-4",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "⚡ **Sadece Sorgu İşleme**\n\nDosya yoksa:\n1. Sadece kullanıcı sorgusunu işler\n2. URL'leri ayıklar\n3. Basit zenginleştirme yapar",
+        "height": 380,
+        "width": 150,
+        "color": 7
+      },
+      "id": "sticky-note-5",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "📤 **Çıkış Formatı**\n\nWorkflow Builder için gerekli format:\n```json\n{\n  \"query\": \"zenginleştirilmiş sorgu\",\n  \"sources\": [\"url1\", \"url2\"]\n}\n```",
+        "height": 300,
+        "width": 440,
+        "color": 2
+      },
+      "id": "sticky-note-6",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🎯 **Workflow Builder'a Gönder**\n\n⚠️ **YAPILACAK:**\nWorkflow Builder endpoint URL'ini\ngercek adresle değiştirin!\n\nŞu an placeholder kullanılıyor:\n`workflow-builder-endpoint.com`",
+        "height": 300,
+        "width": 280
+      },
+      "id": "sticky-note-7",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "extract-input-data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract-input-data": {
+      "main": [
+        [
+          {
+            "node": "check-file-exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check-file-exists": {
+      "main": [
+        [
+          {
+            "node": "process-with-file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "process-without-file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process-with-file": {
+      "main": [
+        [
+          {
+            "node": "format-output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process-without-file": {
+      "main": [
+        [
+          {
+            "node": "format-output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format-output": {
+      "main": [
+        [
+          {
+            "node": "send-to-workflow-builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

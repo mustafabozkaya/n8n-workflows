@@ -1,0 +1,1458 @@
+{
+  "name": "INSTANTLY_lead_advanced_generate_with_olama_gender",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "1156a271-879d-45ec-998a-fafa9548702e",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n}",
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3140,
+        1080
+      ],
+      "id": "d820367e-3df1-4611-ab01-943599192cee",
+      "name": "Set (Enrich Leads with Final Category Data)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2060,
+        345
+      ],
+      "id": "6a15b4d1-9549-4c9d-82e7-4430ef381918",
+      "name": "Loop Over Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Set (Current Lead Data)').item.json.email || $('Set (Current Lead Data)').item.json.email1 || $('Set (Current Lead Data)').item.json.manager_mail1 || $('Set (Current Lead Data)').item.json.manager_mail2 || $('Set (Current Lead Data)').item.json.manager_mail3 }}",
+              "operation": "contains",
+              "value2": "@"
+            },
+            {
+              "value1": "={{ $('Set (Current Lead Data)').item.json.email || $('Set (Current Lead Data)').item.json.email1 || $('Set (Current Lead Data)').item.json.manager_mail1 || $('Set (Current Lead Data)').item.json.manager_mail2 || $('Set (Current Lead Data)').item.json.manager_mail3 }}",
+              "operation": "contains",
+              "value2": "(at)"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "5392941b-79b2-45b5-90fc-ea2b04db0ce2",
+      "name": "IF (Lead Has Valid Email?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        345
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $(\"Set (Current Lead Data)\").first().json; // From 'Set (Current Lead Data)'\nconst category = lead.main_category || lead.category_group || lead.category_group_tr || lead.category_tr;\nconst date = new Date().toISOString().split('T')[0];\n// Sanitize name for Instantly.ai (remove special chars except space, dash, underscore)\nconst leadListName = `${category} Leads`;\nreturn { json: { leadListName: leadListName } };"
+      },
+      "id": "efc2b7e7-e107-4ee5-92ed-918ae3ef9569",
+      "name": "Code (Prepare Lead List Name - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2940,
+        295
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.instantly.ai/api/v2/lead-lists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "f7d6ac81-91b6-4c91-add8-460c31fbf72e",
+      "name": "HTTP Request (Get Existing Lead Lists on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        3160,
+        300
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki 'Code (Prepare Lead List Name - Placeholder)' nodundan gelen veriyi al\n// Bu nodun çıktısı [{ json: { leadListName: \"...\" } }] şeklinde olduğu için ilk elemanı alıyoruz.\nconst preparedListData = $('Code (Prepare Lead List Name - Placeholder)').first().json; // Bu, önceki Code nodundan gelen tek öğeyi alır\nconst leadListNameToFind = preparedListData.leadListName;\n\n// 'HTTP Request (Get Existing Lead Lists on Instantly)' nodundan gelen veriyi al\n// Bu nodun çıktısı da [{ json: { items: [...], next_starting_after: \"...\" } }] şeklinde.\nconst existingListsData = $('HTTP Request (Get Existing Lead Lists on Instantly)').first().json;\nconst existingLeadLists = existingListsData.items || []; // 'items' dizisini al, yoksa boş dizi kullan\n\nlet listExists = false;\nlet existingListId = null;\nlet existingListName = null; // Eşleşen listenin adını da saklayabiliriz (opsiyonel)\n\nfor (const list of existingLeadLists) {\n  if (list.name && list.name.trim() === leadListNameToFind.trim()) {\n    listExists = true;\n    existingListId = list.id;\n    existingListName = list.name; // Eşleşen listenin tam adını al\n    break; // Eşleşme bulundu, döngüden çık\n  }\n}\n\n// Sonucu döndür\nreturn [{ // n8n Code nodu genellikle bir dizi öğe döndürür\n  json: {\n    listExists: listExists,\n    leadListName: leadListNameToFind, // Aranan liste adını tekrar ilet\n    leadListId: existingListId,       // Bulunan liste ID'si (yoksa null)\n    matchedListName: existingListName // Eşleşen listenin adı (yoksa null, hata ayıklama için)\n  }\n}];"
+      },
+      "id": "7a6d4804-4539-4561-8c6f-dfe119c497d9",
+      "name": "Code (Find Existing Lead List or Prepare New - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3380,
+        295
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.listExists }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "e9c1d285-4a57-4b28-8e1f-0572d0bce4b3",
+      "name": "IF (Instantly Lead List Exists?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        295
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/lead-lists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.leadListName }}"
+            },
+            {
+              "name": "has_enrichment_task",
+              "value": "=false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "88ffdda1-add3-4ffe-8030-3f24f702b196",
+      "name": "HTTP Request (Create Lead List on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        3800,
+        100
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "07f96544-7c39-45d1-ac50-985014aec619",
+      "name": "Merge (Consolidate Lead List ID)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- AYARLAR: Bu alanları kolayca değiştirebilirsiniz ---\n// Bir ekip üyesinin ID'si. Instantly'de Settings > Team altından bulunur.\nconst ASSIGNED_TO_USER_ID = \"bd3add6d-ad16-4451-b231-e7101b08a9f7\"; // Resimden alınan örnek ID\nconst campaign_id = \"e7c6beb5-de47-4304-a536-b3e2623a3710\";\n\n\n// HTTP Request (AI Gender Inference) düğümünden gelen veriyi al\nconst genderResult = $('JSON (Parse AI Response)').first().json.inferred_gender;\n// Code (Prepare Lead Data for AI) düğümünden gelen orijinal lead verisini al\n// Bu düğüm, orijinal lead verisini ve AI için hazırlanan alanları içerir.\nconst lead = $('Code (Prepare Lead Data for AI)').first().json;\nconst listData = $('Set (Standardize Lead List ID)').first().json;\n\n// Liste ID'sini belirle\nconst listIdToUse = listData.finalLeadListId;\n\n\n\n// const campaign=$input.first().json;\n// const campaign_id = campaign.leadCampaignId;\n\n// id\n// e7c6beb5-de47-4304-a536-b3e2623a3710\n// name\n// Mali_Danisman_Cold\n// id\n// 1890a3cd-0e00-47b8-bbe5-a27909eb37ce\n// name\n// İmmobilien_Cold_Temas\n// status\n// 0\n\n// id:e99d3419-124b-4f77-ba70-aa177d5289a9\n// name:Doctor_Cold_Temas_Yeni_List\n\n// \"id\": \n// \"7d55703a-95e9-4850-be60-a702e6faced7\",\n// \"name\": \n// \"Doctor_Temas_2.Acilan\",\n\n// \"id\": \n// \"5bfb194f-43ed-46d8-92a0-6f9c296b2381\",\n// \"name\": \n// \"Doctor_Temas_3.Acilan\",\n\n\n// --- YENİ E-POSTA BULMA VE TEMİZLEME FONKSİYONU ---\n/**\n * Verilen 'lead' nesnesi içinde geçerli bir e-posta adresi arar, bulur ve temizler.\n * 'mail' kelimesini içeren tüm alanları kontrol eder (örn: email, email1, manager_mail1).\n * Birden fazla '@' içeren hatalı e-postaları (örn: 'a@b@c.com') düzelterek 'b@c.com' formatına getirir.\n * @param {object} leadObject - Potansiyel e-posta alanlarını içeren nesne.\n * @returns {string|null} - Bulunan ve temizlenen ilk geçerli e-posta adresini veya bulunamazsa null döner.\n */\nconst findAndCleanEmail = (leadObject) => {\n    // Genel e-posta formatını kontrol eden basit bir regex.\n    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\n    // 'lead' nesnesindeki tüm anahtarları al.\n    const keys = Object.keys(leadObject);\n\n    // İçinde 'mail' geçen anahtarları bul (büyük/küçük harf duyarsız).\n    const emailKeys = keys.filter(key => key.toLowerCase().includes('mail'));\n    // 'email' anahtarını da ekleyerek önceliklendir\n    if (!emailKeys.includes('email')) emailKeys.unshift('email');\n\n\n    // Potansiyel e-posta anahtarları arasında dolaşarak ilk geçerli olanı bul.\n    for (const key of emailKeys) {\n        let potentialEmail = leadObject[key];\n\n        if (potentialEmail && typeof potentialEmail === 'string') {\n            potentialEmail = potentialEmail.trim();\n            const atCount = (potentialEmail.match(/@/g) || []).length;\n\n            if (atCount > 1) {\n                // Eğer birden fazla '@' varsa, e-postayı yeniden oluştur.\n                // Örnek: 'info@tcm.zentrum.lev@gmx.de' -> 'tcm.zentrum.lev@gmx.de'\n                const parts = potentialEmail.split('@');\n                const correctedEmail = parts.slice(-2).join('@');\n                if (emailRegex.test(correctedEmail)) {\n                    return correctedEmail; // İlk geçerli ve düzeltilmiş e-postayı döndür.\n                }\n            } else if (atCount === 1) {\n                // Eğer tek '@' varsa, sadece geçerliliğini kontrol et.\n                if (emailRegex.test(potentialEmail)) {\n                    return potentialEmail; // İlk geçerli e-postayı döndür.\n                }\n            }\n        }\n    }\n\n    return null; // Geçerli bir e-posta bulunamazsa null döndür.\n};\n\n\n\n// E-posta adresini yeni fonksiyonla bul ve temizle\nconst emailToUse = findAndCleanEmail(lead);\n\n\n\n/**\n * Telefon numarasını temizler ve normalize eder.\n * - Unicode dışı karakterler silinir.\n * - '0049' -> '+49' dönüşümü yapılır.\n * - Eğer numara Almanya numarası değilse başına '+49' eklenebilir (isteğe bağlı).\n * @param {string} rawPhone - Ham telefon numarası\n * @returns {string|null} - Temizlenmiş ve normalize edilmiş telefon numarası\n */\nconst cleanPhoneNumber = (rawPhone) => {\n    if (!rawPhone || typeof rawPhone !== 'string') return null;\n\n    // Adım 1: Unicode karakterleri temizle\n    let cleaned = rawPhone.normalize(\"NFKD\").replace(/[^\\x00-\\x7F]/g, '');\n\n    // Adım 2: Boşluk, parantez, tire gibi işaretleri kaldır\n    cleaned = cleaned.replace(/[\\s\\-().]/g, '');\n\n    // Adım 3: '0049' varsa '+49' yap\n    if (cleaned.startsWith('0049')) {\n        cleaned = '+' + cleaned.slice(4);\n    }\n\n    // Adım 4: Eğer '+49' ile başlamıyorsa ve sayı içeriyorsa, başına ekle\n    if (!cleaned.startsWith('+') && cleaned.match(/^\\d+$/)) {\n        cleaned = '+49' + cleaned;\n    }\n\n    // Adım 5: Sadece geçerli bir telefon numarası gibi görünüyorsa dön\n    return cleaned.length > 6 && cleaned.startsWith('+') ? cleaned : null;\n};\n\n// --- İSİM VE SOYİSİM AYIRMA KISMI ---\nlet firstName = null;\nlet lastName = null;\nlet fullNameSource = lead.manager1 || lead.name || null;\n\nif (fullNameSource && typeof fullNameSource === 'string') {\n    const titlesToRemove = ['Frau', 'Herr', 'Dr.', 'Prof.', 'Mr.', 'Mrs.'];\n    let cleanedName = fullNameSource;\n    titlesToRemove.forEach(title => {\n        if (cleanedName.toLowerCase().startsWith(title.toLowerCase() + ' ')) {\n            cleanedName = cleanedName.substring(title.length + 1).trim();\n        }\n    });\n    const nameParts = cleanedName.split(' ').filter(part => part);\n    if (nameParts.length > 0) {\n        firstName = nameParts.shift();\n        if (nameParts.length > 0) {\n            lastName = nameParts.join(' ');\n        }\n    }\n}\n// --- İSİM AYIRMA SONU ---\n\n// Şehir bilgisini adresten çıkar\nlet city = null;\ntry {\n  if (lead.address) {\n    const addressParts = lead.address.split(',');\n    if (addressParts.length > 1) {\n      city = addressParts[1].replace(/\\d+/g, '').trim();\n    }\n  }\n} catch (e) {\n  console.log(\"Şehir bilgisi adresten çıkarılamadı: \", e.message);\n}\n\n// Instantly.ai'ye gönderilecek veri yükü (payload)\nconst instantlyLeadPayload = {\n  // Temel Bilgiler\n  email: emailToUse,\n  first_name: firstName,\n  last_name: lastName,\n  company_name: lead.name || lead.company_name1,\n  phone: cleanPhoneNumber(lead.phone_number) || null,\n  website: lead.website || null,\n  category: lead.category,\n  \n\n  // Zenginleştirilmiş Alanlar\n  assigned_to: ASSIGNED_TO_USER_ID,\n  \n  // Kişiselleştirme alanı\n  personalization: `Hallo ${firstName || ''}, Ihr Unternehmen ${lead.name || lead.company_name1} ist uns aufgefallen.`,\n\n  // Veri Temizliği ve Doğrulama Ayarları\n  skip_if_in_workspace: true,\n  skip_if_in_campaign: true,\n  skip_if_in_list: true,\n  verify_leads_on_import: true,\n\n  // Özel Değişkenler\n  custom_variables: {\n    \"anrede\": firstName || lastName || 'Lieber Ansprechpartner',\n    \"gender\" :genderResult,\n    \"city\": city,\n    \"location\": lead.address,\n    \"manager\": lead.manager1,\n    \"main_category\": lead.main_category,\n    \"plus_code\": lead.plus_code,\n    \"category\": lead.category,\n    \"category_tr\": lead.category_tr,\n    \"category_group_de\": lead.category_group,\n    \"category_group_tr\": lead.category_group_tr,\n    \"comment_count\": lead.comment_count || 0,\n    \"comment_avg\": lead.comment_avg || null,\n    \"past_customer\": false,\n    \"has_tried_competitors\": false,\n\n    // Yeni eklenen alanlar\n    \"Pozitif_Yorum_Sayısı\": Math.round((lead.five_star || 0) + (lead.four_star || 0)),\n    \"Negatif_Yorum_Sayısı\": Math.round((lead.one_star || 0) + (lead.two_star || 0) + (lead.three_star || 0)),\n    \"Ortalama_Skor\": lead.rating || null,\n    \"Total_Comments\": (lead.five_star || 0) + (lead.four_star || 0) + (lead.three_star || 0) + (lead.two_star || 0) + (lead.one_star || 0)\n},\n\n\n  // Dokümantasyonda olmayan alanlar\n  \"lt_interest_status\": 1,\n  \"pl_value_lead\": \"High\",\n};\n// Sonucu bir sonraki otomasyon adımına aktar\nreturn {\n  json: {\n    currentLead: lead,\n    instantlyLeadPayload: instantlyLeadPayload,\n    campaign: campaign_id,\n    list_id: listIdToUse,\n  }\n};\n"
+      },
+      "id": "44f480eb-a2d2-4946-bb4e-f4e08b977a4d",
+      "name": "Code (Build Instantly Lead Body - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5340,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.payload.isNotEmpty() & $json.upload_method == 'api' & $json.timestamp_created.isNotEmpty()}}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "d68e7379-1e58-4733-ab3c-35b086e8eb80",
+      "name": "IF (Lead Added to Instantly List Successfully?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        5980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: See instructions for full code.\n// This node prepares campaign name and sequence details.\nconst lead = $('Set (Current Lead Data)').first().json; \n// From 'Set (Current Lead Data)'\nconst category = lead.main_category || lead.category_group || lead.category_group_tr || lead.category_tr;\n\n// Türkçe ifadeleri İngilizce karşılıklarıyla değiştirme\nconst translatedCategory = category.replace(/doktor/gi, 'doctor')\n                                   .replace(/hemşire/gi, 'nurse')\n                                   .replace(/hastane/gi, 'hospital')\n                                   .replace(/klinik/gi, 'clinic');\n// Diğer benzer ifadeleri de buraya ekleyebilirsiniz.\n\nconst date = new Date().toISOString().split('T')[0];\n// Sanitize name for Instantly.ai (remove special chars except space, dash, underscore)\nconst campaignName = `${translatedCategory}`;\nreturn { json: { campaignName: campaignName, sequence: {}, campaignSchedule: {} } };\n"
+      },
+      "id": "0d66db46-7d4e-4530-8186-c2c9f300374a",
+      "name": "Code (Prepare Campaign Name & Sequence Details - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki 'Code (Prepare Campaign Name & Sequence Details - Placeholder)' nodundan gelen veriyi al\nconst preparedCampaignData = $('Code (Prepare Campaign Name & Sequence Details - Placeholder)').first().json;\nconst leadCampaignNameToFind = preparedCampaignData.campaignName.toLowerCase(); // Küçük harfe çevir\n\n// 'HTTP Request (Get Existing Campaigns on Instantly)' nodundan gelen veriyi al\nconst existingCampaignData = $('HTTP Request (Get Existing Campaigns on Instantly)').first().json;\nconst existingCampaignLists = existingCampaignData.items || []; // 'items' dizisini al, yoksa boş dizi kullan\n\n// Aynı isim içerenleri filtrele (case insensitive)\nconst matchedCampaigns = existingCampaignLists.filter(list =>\n    list.name && list.name.trim().toLowerCase().includes(leadCampaignNameToFind)\n);\n\n// Eğer birden fazla varsa en güncel timestamp_created'e göre sırala\nmatchedCampaigns.sort((a, b) => new Date(b.timestamp_created) - new Date(a.timestamp_created));\n\nconst latestCampaign = matchedCampaigns.length > 0 ? matchedCampaigns[0] : null;\n\nconst listExists = latestCampaign !== null;\nconst existingListId = latestCampaign ? latestCampaign.id : null;\nconst existingListName = latestCampaign ? latestCampaign.name : null;\nconst existingListCreatedAt = latestCampaign ? latestCampaign.timestamp_created : null;\n\n// 'items' dizisindeki tüm 'name' alanlarını bir diziye çıkar\nconst allNames = existingCampaignLists.map(list => list.name);\n\n// Sonucu döndür\nreturn [{\n    json: {\n        campaignExists: listExists,\n        leadCampaignName: leadCampaignNameToFind,\n        leadCampaignId: existingListId,\n        matchedCampaignName: existingListName,\n        matchedCampaignCreatedAt: existingListCreatedAt,\n        allCampaignNames: allNames\n    }\n}];\n"
+      },
+      "id": "9c971180-0c76-4d21-987e-1bf917e0a944",
+      "name": "Code (Find Existing Campaign or Prepare New - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.campaignExists }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "66d47bcd-d7f2-41e9-85b1-d4e4519c050f",
+      "name": "IF (Instantly Campaign Exists?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        5880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.campaignName, status: 0, campaign_schedule: $json.campaignSchedule, sequences: [$json.sequence], is_evergreen: false, text_only: false, link_tracking: true, open_tracking: true, stop_on_reply: true, stop_on_auto_reply: true }) }}",
+        "options": {}
+      },
+      "id": "8f6c955e-758e-4e31-8124-ca5d5a4c3b74",
+      "name": "HTTP Request (Create Campaign on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        6120,
+        100
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "41bf73e3-b07a-4875-b000-d4fb967f2b4a",
+      "name": "Merge (Consolidate Campaign ID and Data)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        6440,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.business_leads\nSET pipelined = 1, -- instantly add is sucess\n   updated_at = NOW() -- Opsiyonel: Son işlem zamanını kaydetmek için\nWHERE id = {{ $('Code (Build Instantly Lead Body - Placeholder)').first().json.currentLead.id}}; ",
+        "options": {}
+      },
+      "id": "0404cce3-c0c3-42ad-adf6-294a3723371d",
+      "name": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        6420,
+        500
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "855a2084-8cd1-4fe5-83a2-3989a9c25fc0",
+      "name": "No Operation (Loop Iteration End)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6820,
+        780
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "80e572e1-a6ff-41f6-a2f9-3dec2a3c60ec",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        2040,
+        760
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "5e7c045c-8d7a-40cd-8ff3-cb15fc6be29c",
+      "name": "Process Error",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a783ca2-ed1c-4a9a-adbf-0eb5622ff889",
+              "name": "finalLeadListId",
+              "value": "={{ $json.id || $json.leadListId }}",
+              "type": "string"
+            },
+            {
+              "id": "3787a207-ba7c-4e2d-b2cb-9f5421cf05f5",
+              "name": "finalLeadListName",
+              "value": "={{ $json.leadListName|| $json.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4200,
+        280
+      ],
+      "id": "9525dad7-c651-4b7c-a3d7-28361185f32a",
+      "name": "Set (Standardize Lead List ID)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "682bf4c1-2dc0-49d5-bd38-4a9cf954c496",
+              "leftValue": "={{ $json.is_warm }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2900,
+        1100
+      ],
+      "id": "8f894775-74b3-4eb0-ad69-6093b5a88865",
+      "name": "IF (Lead is Warm?)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select \n      lc.main_category,\n\t lc.category,\n\t lc.category_group,\n\t lc.category_tr,\n\t lc.category_group_tr,\n     bl.*\nfrom lead_db.business_leads bl join lead_db.lead_category lc  on bl.category =lc.category\nwhere (bl.email IS NOT NULL \nor bl.email1 IS NOT NULL)\nAND  bl.email1 !='[email if found]'\nand bl.email1  like \"%@%\"\nand bl.company_name1 is not null\n AND (\n  lc.category =\"Steuerberater\" or\n  lc.category =\"Finanzberater\" or\n  lc.category =\"Steuerberatung\" or\n  lc.category =\"Anlageberatung\" or\n  lc.category =\"Schuldenberatung\" or\n  lc.category =\"Hypothekenmakler\"\n  )\n -- AND (\n --  lc.main_category = 'Doktor'  or\n --  lc.main_category = 'İmmo' or\n --    lc.main_category = 'Avukat' or\n --   lc.main_category = 'Handwerk' or \n --  lc.category = \"Autohandler\"\n --  )\n  and \n(  \n -- bl.pipelined = 1 or\n  bl.pipelined IS NULL \n  OR bl.pipelined =2\n  or bl.pipelined =3\n ) \n  ORDER BY created_at ASC\nlimit 100"
+      },
+      "id": "f71a5621-8e25-4db4-94c2-875150305f15",
+      "name": "MySQL (Fetch All Doctor Leads)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        1180
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    cn.*, \n    bl.*, \n    lc.main_category\nFROM \n    companies_new cn\nJOIN \n    business_leads bl ON cn.cid = bl.cid\nJOIN \n    lead_category lc ON bl.category = lc.category\nWHERE \n    lc.main_category = 'Doktor'  or\n  lc.main_category = 'İmmo' or\n  lc.main_category = 'Avukat'\n or lc.main_category = 'Handwerk'"
+      },
+      "id": "d32c6846-6903-42c9-b141-6befeb5f8e04",
+      "name": "MySQL (Fetch Warm Lead CIDs)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        980
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allLeads = $('MySQL (Fetch All Doctor Leads)').all();\nconst warmLeadData = $('MySQL (Fetch Warm Lead CIDs)').all();\n\n// Warm CID'leri hızlı arama için bir Set'e dönüştür\nconst warmCidSet = new Set(warmLeadData.map(item => item.json.cid));\n\nconst results = [];\nfor (const leadItem of allLeads) {\n  const isWarm = warmCidSet.has(leadItem.json.cid);\n  leadItem.json.is_warm = isWarm;\n  results.push(leadItem);\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        1100
+      ],
+      "id": "d326ed78-c55c-46c3-8753-e0f83fbfb20c",
+      "name": "Code (Check if Lead is Warm)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        2460,
+        1100
+      ],
+      "id": "d3cb2fb5-a1c5-465a-b1f4-e2e55eacb913",
+      "name": "Merge (Combine Leads and Warm List)"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $json }}",
+        "options": {}
+      },
+      "id": "0f8a7c57-e387-4633-b0ff-37e0d9906841",
+      "name": "Set (Current Lead Data)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2280,
+        345
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki node'dan gelen JSON verisi\nconst input = $json;\n\n// Temizlenecek e-posta alanlarının listesi\nconst emailFields = [\n  'email',\n  'email1',\n  'manager_mail1',\n  'manager_mail2',\n  'manager_mail3'\n];\n\n// Her bir e-posta alanını kontrol et ve \"(at)\" ifadesini \"@\" ile değiştir\nfor (const field of emailFields) {\n  const value = input[field];\n  if (value && typeof value === 'string') {\n    input[field] = value.replace(/\\(at\\)/gi, '@');\n  }\n}\n\n// Güncellenmiş JSON verisini çıktıya aktar\nreturn [\n  {\n    json: input\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2500,
+        345
+      ],
+      "id": "d0b085fa-ee0e-43ac-973a-edc2682762f9",
+      "name": "Edit Emails field"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "first_name",
+              "value": "={{ $json.first_name }}"
+            },
+            {
+              "name": "last_name",
+              "value": "={{ $json.last_name }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "name": "website",
+              "value": "={{ $json.website }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "category",
+              "value": "={{ $json.category }}"
+            },
+            {
+              "name": "assigned_to",
+              "value": "={{ $json.assigned_to }}"
+            },
+            {
+              "name": "personalization",
+              "value": "={{ $json.personalization }}"
+            },
+            {
+              "name": "skip_if_in_workspace",
+              "value": "={{ $json.skip_if_in_workspace }}"
+            },
+            {
+              "name": "skip_if_in_campaign",
+              "value": "={{ $json.skip_if_in_campaign }}"
+            },
+            {
+              "name": "skip_if_in_list",
+              "value": "={{ $json.skip_if_in_list }}"
+            },
+            {
+              "name": "verify_leads_on_import",
+              "value": "={{ $json.verify_leads_on_import }}"
+            },
+            {
+              "name": "custom_variables",
+              "value": "={{ $json.custom_variables }}"
+            },
+            {
+              "name": "pl_value_lead",
+              "value": "={{ $json.pl_value_lead }}"
+            },
+            {
+              "name": "list_id",
+              "value": "={{ $json.list_id }}"
+            },
+            {
+              "name": "lt_interest_status",
+              "value": "={{ $json.lt_interest_status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3344275c-e577-4146-95b5-ee3888314b87",
+      "name": "HTTP Request (Add Lead to Instantly List) By category",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5800,
+        260
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://api.instantly.ai/api/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "65dc6670-818d-478e-a580-1161481af933",
+      "name": "HTTP Request (Get Existing Campaigns on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5220,
+        0
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.business_leads\nSET \n    pipelined = 3,  -- 3: E-posta Yok/Geçersiz (veya sizin belirleyeceğiniz bir durum kodu)\n    -- mailing_platform = 'no_valid_email_found',\n    updated_at = NOW() -- Opsiyonel: Son işlem zamanını kaydetmek için\nWHERE \n    id = {{ $json.id }}\nAND cid = '{{ $json.cid }}' -- Eğer 'id' tek başına benzersiz değilse, cid ile birlikte kullanabilirsiniz. Genellikle id yeterlidir.\n;",
+        "options": {}
+      },
+      "id": "e57fd848-a619-4346-93da-e17cbb18d594",
+      "name": "MySQL (Update business_leads- No Email)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        2940,
+        500
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.business_leads\nSET pipelined = 2\n  -- 'instantly_add_lead_fail'\nWHERE id = {{ $('Code (Build Instantly Lead Body - Placeholder)').first().json.currentLead.id}};",
+        "options": {}
+      },
+      "id": "018d6600-6036-4d07-b1dc-a935986b79f9",
+      "name": "MySQL (Update business_leads - Instantly Add Lead Fail)1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        6420,
+        680
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://194.5.236.83:8080/api/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-r1:latest\",\n  \"prompt\": \"Leiten Sie das Geschlecht für den Namen ab: {{ $json.firstNameForAI }}\\n\\nGeben Sie NUR gültiges JSON mit GENAU den folgenden Feldern und Formaten zurück:\\n{\\n    \\\"inferred_gender\\\": \\\"[abgeleitetes Geschlecht: 'Herr', 'Frau' oder 'Herr/Frau']\\\"\\n}\\n\\nGeben Sie NUR das JSON ohne zusätzlichen Text zurück.\",\n  \"system\": \"Sie sind ein KI-Assistent, der das Geschlecht anhand eines gegebenen Namens ableitet. Ihre Aufgabe ist es, das Geschlecht (Herr, Frau oder Herr/Frau) der Person basierend auf ihrem Vornamen zu bestimmen. Wenn der Name nicht angegeben wird oder das Geschlecht nicht sicher abgeleitet werden kann, geben Sie 'Herr/Frau' zurück.\",\n  \"stream\": false,\n  \"format\": \"json\",\n  \"raw\": false,\n  \"options\": {\n    \"temperature\": 0.5,\n    \"top_k\": 40,\n    \"top_p\": 0.9,\n    \"repeat_penalty\": 1.1,\n    \"seed\": 42,\n    \"num_predict\": 512\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4900,
+        380
+      ],
+      "id": "8fa55d14-a9ca-428b-93e1-8d9454357b0d",
+      "name": "HTTP Request (AI Gender Inference)",
+      "retryOnFail": true,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "aPoaTX1vb3cPgkSg",
+          "name": "ollama basic "
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki düğümden gelen lead verisini al\nconst lead = $(\"Set (Current Lead Data)\").first().json\n\nlet firstNameForAI = 'unknown'; // AI'ya gönderilecek ilk isim\nlet emailForAI = null;         // AI'ya gönderilecek e-posta (eğer gerekirse)\n\n// 1. manager1 alanını kontrol et\nif (lead.manager1 && typeof lead.manager1 === 'string' && lead.manager1.trim() !== '') {\n    const parts = lead.manager1.trim().split(' ');\n    if (parts.length > 0) {\n        firstNameForAI = parts[0];\n    }\n}\n\n// 2. Eğer manager1'den isim bulunamadıysa, name alanını kontrol et\nif (firstNameForAI === 'unknown' && lead.name && typeof lead.name === 'string' && lead.name.trim() !== '') {\n    const parts = lead.name.trim().split(' ');\n    if (parts.length > 0) {\n        firstNameForAI = parts[0];\n    }\n}\n\n// E-posta adresini temizle ve hazırla (eğer AI'ya göndermek isterseniz)\n// Bu kısım, AI'dan e-posta doğrulaması veya analizi isterseniz kullanılabilir.\n// Şu anki cinsiyet çıkarımı prompt'u için doğrudan kullanılmayabilir,\n// ancak gelecekteki genişletmeler için faydalıdır.\nif (lead.email1 && typeof lead.email1 === 'string' && lead.email1.trim() !== '') {\n    emailForAI = lead.email1.trim().replace(/\\[at\\]/gi, '@');\n    // Eğer @ işareti yoksa ekleme mantığı burada olabilir,\n    // ancak AI'dan e-posta doğrulaması istemiyorsak bu kadar detaya gerek yok.\n}\n\n// Sonraki düğüme gönderilecek veriyi hazırla\n// Orijinal lead verisini koruyarak, AI için özel alanlar ekliyoruz.\nreturn [{\n    json: {\n        // Orijinal lead verisini koru (isteğe bağlı, ancak genellikle iyi bir pratiktir)\n        ...lead,\n        // AI'ya gönderilecek özel alanlar\n        firstNameForAI: firstNameForAI,\n        emailForAI: emailForAI // Eğer AI'ya e-posta göndermek isterseniz\n    }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4660,
+        380
+      ],
+      "id": "88fec8f0-6ef6-4176-a612-f9f60b56f711",
+      "name": "Code (Prepare Lead Data for AI)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki düğümden (HTTP Request - AI Gender Inference) gelen veriyi al\n// Bu düğümün çıktısı genellikle tek bir öğe içerir.\nconst aiResponseItem = $input.first();\nconst aiResponseJson = aiResponseItem.json; // JSON objesini al\n\nlet parsedGenderData = { inferred_gender: 'unknown' }; // Varsayılan değer\n\n// 'response' alanının varlığını ve tipini kontrol et\n// AI'dan gelen yanıtın 'response' anahtarı altında bir string olarak geldiğini varsayıyoruz.\nif (aiResponseJson.response && typeof aiResponseJson.response === 'string') {\n    try {\n        // 'response' string'ini JSON objesine dönüştür\n        // JSON.parse'dan önce trim() kullanmak, string'in başındaki/sonundaki boşlukları/yeni satırları temizler.\n        const rawParsed = JSON.parse(aiResponseJson.response.trim());\n\n        // Eğer parse edilen objede 'inferred_gender' alanı varsa kullan, yoksa 'unknown' olarak kalır.\n        if (rawParsed.inferred_gender) {\n            parsedGenderData.inferred_gender = rawParsed.inferred_gender;\n        }\n    } catch (error) {\n        // JSON parse hatası durumunda konsola hata yazdır ve varsayılan değeri koru\n        console.error(\"Error parsing AI response JSON:\", error);\n        // Hata durumunda parsedGenderData zaten varsayılan 'unknown' değerini tutuyor olacak.\n    }\n}\n\n// Sonraki düğüme gönderilecek veriyi hazırla.\n// Bu düğümün çıktısı, sadece parse edilmiş cinsiyet bilgisini içermelidir.\n// Diğer lead verileri, Code (Prepare Lead Data for AI) düğümünden veya\n// doğrudan Code (Build Instantly Lead Body - Placeholder) düğümünde alınacaktır.\nreturn [{\n    json: {\n        inferred_gender: parsedGenderData.inferred_gender\n    }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5100,
+        260
+      ],
+      "id": "840a24dd-eb37-44db-be6d-437a5c270f9e",
+      "name": "JSON (Parse AI Response)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "301c577f-c8ea-4d93-8098-9bb349796f56",
+              "leftValue": "false",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4600,
+        0
+      ],
+      "id": "e1657aff-d88c-4dae-b53d-61ed58f6721f",
+      "name": "If go Campaign instantly"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.payload.isNotEmpty() & $json.upload_method == 'api' & $json.timestamp_created.isNotEmpty()}}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "a91563fd-4b2a-4cde-9c18-2748c5798d7c",
+      "name": "IF (Lead Added to Instantly List Successfully?)1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        6420,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $('Code (Build Instantly Lead Body - Placeholder)').first();\nconst j = item.json;\n\n// Return item with updated JSON\nreturn {\n  ...j.instantlyLeadPayload,  // Spread the payload object directly\n  campaign: j.campaign ?? \"e7c6beb5-de47-4304-a536-b3e2623a3710\",\n  list_id: j.list_id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5580,
+        260
+      ],
+      "id": "a5e1c720-1ded-4931-9047-47c7c3449f57",
+      "name": "SET (Build Instantly Lead Body)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.email }}"
+            },
+            {
+              "name": "first_name",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.first_name }}"
+            },
+            {
+              "name": "last_name",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.last_name }}"
+            },
+            {
+              "name": "company_name",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.company_name }}"
+            },
+            {
+              "name": "website",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.website }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.phone }}"
+            },
+            {
+              "name": "category",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.category }}"
+            },
+            {
+              "name": "assigned_to",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.assigned_to }}"
+            },
+            {
+              "name": "personalization",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.personalization }}"
+            },
+            {
+              "name": "skip_if_in_workspace",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.skip_if_in_workspace }}"
+            },
+            {
+              "name": "skip_if_in_campaign",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.skip_if_in_campaign }}"
+            },
+            {
+              "name": "skip_if_in_list",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.skip_if_in_list }}"
+            },
+            {
+              "name": "verify_leads_on_import",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.verify_leads_on_import }}"
+            },
+            {
+              "name": "custom_variables",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.custom_variables }}"
+            },
+            {
+              "name": "pl_value_lead",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.pl_value_lead }}"
+            },
+            {
+              "name": "campaign",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.campaign}}"
+            },
+            {
+              "name": "lt_interest_status",
+              "value": "={{ $('SET (Build Instantly Lead Body)').item.json.lt_interest_status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "df18a42b-21ce-453c-a8fe-27f46c4c2434",
+      "name": "HTTP Request (Add Lead to Instantly List) By category1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        6160,
+        280
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://api.instantly.ai/api/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "7983e213-08dd-4bb7-8676-34ac1685b010",
+      "name": "HTTP Request (Get Existing Campaigns on Instantly)1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5220,
+        -200
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "MySQL (Fetch All Doctor Leads)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MySQL (Fetch Warm Lead CIDs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Enrich Leads with Final Category Data)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Set (Current Lead Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead Has Valid Email?)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare Lead List Name - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL (Update business_leads- No Email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Lead List Name - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Get Existing Lead Lists on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Get Existing Lead Lists on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Code (Find Existing Lead List or Prepare New - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Find Existing Lead List or Prepare New - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "IF (Instantly Lead List Exists?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Instantly Lead List Exists?)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Lead List ID)",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request (Create Lead List on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Create Lead List on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Lead List ID)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Consolidate Lead List ID)": {
+      "main": [
+        [
+          {
+            "node": "Set (Standardize Lead List ID)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Build Instantly Lead Body - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "SET (Build Instantly Lead Body)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead Added to Instantly List Successfully?)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Add Lead to Instantly List) By category1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL (Update business_leads - Instantly Add Lead Fail)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Campaign Name & Sequence Details - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "If go Campaign instantly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Find Existing Campaign or Prepare New - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "IF (Instantly Campaign Exists?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Instantly Campaign Exists?)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Campaign ID and Data)",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request (Create Campaign on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Create Campaign on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Campaign ID and Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Consolidate Campaign ID and Data)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare Lead Data for AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation (Loop Iteration End)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Standardize Lead List ID)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare Campaign Name & Sequence Details - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead is Warm?)": {
+      "main": [
+        [
+          {
+            "node": "Set (Enrich Leads with Final Category Data)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "MySQL (Fetch All Doctor Leads)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Combine Leads and Warm List)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "MySQL (Fetch Warm Lead CIDs)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Combine Leads and Warm List)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Check if Lead is Warm)": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead is Warm?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Combine Leads and Warm List)": {
+      "main": [
+        [
+          {
+            "node": "Code (Check if Lead is Warm)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Current Lead Data)": {
+      "main": [
+        [
+          {
+            "node": "Edit Emails field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Emails field": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead Has Valid Email?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Add Lead to Instantly List) By category": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead Added to Instantly List Successfully?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Get Existing Campaigns on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Code (Find Existing Campaign or Prepare New - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update business_leads- No Email)": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update business_leads - Instantly Add Lead Fail)1": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Lead Data for AI)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (AI Gender Inference)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (AI Gender Inference)": {
+      "main": [
+        [
+          {
+            "node": "JSON (Parse AI Response)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON (Parse AI Response)": {
+      "main": [
+        [
+          {
+            "node": "Code (Build Instantly Lead Body - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If go Campaign instantly": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Get Existing Campaigns on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code (Prepare Lead Data for AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead Added to Instantly List Successfully?)1": {
+      "main": [
+        [
+          {
+            "node": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL (Update business_leads - Instantly Add Lead Fail)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SET (Build Instantly Lead Body)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Add Lead to Instantly List) By category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Add Lead to Instantly List) By category1": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead Added to Instantly List Successfully?)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

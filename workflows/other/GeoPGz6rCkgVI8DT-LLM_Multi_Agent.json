@@ -1,0 +1,178 @@
+{
+  "name": "LLM Multi-Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -20,
+        220
+      ],
+      "id": "806f4135-f93b-4aa4-a581-a52c604f419a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9d490a44-aa4a-4be9-9ebe-d7821c7ca90f",
+      "name": "LLM Analysis Chain",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "1799b76e-efc8-427c-868d-16d23e93f1cc",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "e36f8c5d-f9da-4dbc-87e0-13d68c305e0b",
+      "name": "promt"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "AS4V8HKKxTfUqDDL",
+          "mode": "list",
+          "cachedResultName": "CALL_CENTER_S3_ANALYSİS"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        160
+      ],
+      "id": "dfa09372-d051-434f-b532-c4c7bcadfa49",
+      "name": "Execute Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Basic LLM Chain çıktısını düzgün JSON'a dönüştür\nconst llmInputItem = $input.first();\nlet output = {};\nlet llmError = null;\n\n// Çağrı ID'sini Process Conversation veya Prepare S3 Download'dan al\nlet callid = 'unknown';\ntry {\n  // create-analysis-prompt node'u $json.callid'yi conversation ile birlikte taşır\n  callid = llmInputItem.json.callid || $('Process Conversation').item.json.callid || $('Prepare S3 Download').item.json.callid || 'unknown'; \n} catch (error) {\n  console.log('CallID bulunamadı (Format LLM Response):', error.message);\n}\n\nif (llmInputItem.json.error) { // LLM Chain'den gelen hata\n  llmError = llmInputItem.json.error.message || 'LLM chain bilinmeyen hata';\n  console.log('Hata: LLM chain hatası:', llmError);\n  output = {\n    error: llmError,\n    sentiment: \"unknown\", topic: \"unknown\", significantterm: \"unknown\",\n    generalvalue: \"unknown\", generalexperience: \"unknown\", sale_outcome: \"unknown\"\n  };\n} else if (llmInputItem.json && llmInputItem.json.text) {\n  let responseText = llmInputItem.json.text;\n  \n  // Markdown JSON formatını temizle (Gemini bazen ```json ... ``` ile dönebilir)\n  if (responseText.startsWith('```json')) {\n    responseText = responseText.substring(7, responseText.length - 3).trim();\n  } else if (responseText.startsWith('```')) { // Bazen sadece ``` ile başlayıp bitebiliyor\n     responseText = responseText.substring(3, responseText.length - 3).trim();\n  }\n  \n  try {\n    output = JSON.parse(responseText);\n    if (output.error === null) { // Prompt'ta error: null istemiştik\n        delete output.error; // Eğer analiz başarılıysa error alanını kaldır\n    }\n  } catch (error) {\n    console.log('JSON parse hatası (Format LLM Response):', error.message, 'Raw Text:', responseText);\n    llmError = 'LLM yanıtı JSON parse hatası: ' + error.message;\n    output = {\n      error: llmError,\n      raw_text: responseText,\n      sentiment: \"unknown\", topic: \"unknown\", significantterm: \"unknown\",\n      generalvalue: \"unknown\", generalexperience: \"unknown\", sale_outcome: \"unknown\"\n    };\n  }\n} else {\n  llmError = 'LLM chain çıktısı boş veya text alanı yok.';\n  console.log('Hata:', llmError);\n  output = {\n    error: llmError\n  };\n}\n\nreturn [{\n  json: {\n    ...output,\n    callid: callid // callid'yi her zaman ekle\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        160
+      ],
+      "id": "f1d4c21f-edcf-461c-855d-e51e464c338e",
+      "name": "Format LLM Response",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "promt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "promt": {
+      "main": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Execute Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

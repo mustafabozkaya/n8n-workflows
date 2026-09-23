@@ -1,0 +1,114 @@
+{
+  "name": "Create json file",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6e0c2f33-347f-4f48-ad13-4bbe51a307cb",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"name\": \"PostgreSQL to MySQL Sync (Insert Only)\",\n  \"nodes\": [\n    {\n      \"parameters\": {},\n      \"id\": \"2d8f9c81-831e-4361-817a-579893d183f9\",\n      \"name\": \"Start\",\n      \"type\": \"n8n-nodes-base.start\",\n      \"typeVersion\": 1,\n      \"position\": [\n        580,\n        300\n      ]\n    },\n    {\n      \"parameters\": {\n        \"rule\": \"cron\",\n        \"cronExpression\": \"*/30 * * * *\"\n      },\n      \"id\": \"e6f43e06-96b6-4b8a-80e9-3b687f48b941\",\n      \"name\": \"Schedule\",\n      \"type\": \"n8n-nodes-base.schedule\",\n      \"typeVersion\": 1.1,\n      \"position\": [\n        600,\n        500\n      ],\n      \"trigger\": true\n    },\n    {\n      \"parameters\": {\n        \"operation\": \"executeQuery\",\n        \"query\": \"SELECT *\\nFROM call_analysis\\nWHERE updated_at >= NOW() - INTERVAL '30 minutes';\",\n        \"options\": {}\n      },\n      \"id\": \"18f15d73-2e21-4d37-8898-33306ed9d96c\",\n      \"name\": \"Fetch New/Updated Data\",\n      \"type\": \"n8n-nodes-base.postgreSql\",\n      \"typeVersion\": 4.1,\n      \"position\": [\n        820,\n        500\n      ],\n      \"credentials\": {\n        \"postgreSql\": {\n          \"id\": \"REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID\",\n          \"name\": \"REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_NAME\"\n        }\n      }\n    },\n    {\n      \"parameters\": {\n        \"operation\": \"executeQuery\",\n        \"query\": \"INSERT IGNORE INTO call_analysis (\\n    callid, sentiment, topic, significant_term, general_value, general_experience,\\n    email_inquired, positive_comment_passed_sale, negative_comment_passed_sale,\\n    price_negotiated, customer_addressed_politely, conversation_fun,\\n    service_advantages_mentioned, other_platforms_mentioned, sale_outcome,\\n    sale_value_scale, asked_if_commenters_known, high_profile_advantages_mentioned,\\n    coordination_confidence, agent_conflicts_resolved, language_detected,\\n    analysis_method, agent_count, llm_error_message,\\n    calltype, ext, phn, url, call_direction, recording_url, skip_reason, skip, h_agent,\\n    s3_uploaded, stt_processed_calls,\\n    agent, response, calltext, note, transcript_s3_url, analysis_s3_url,\\n    llm_processed, stt_processed_pipe, llm_error_pipe,\\n    created_at, updated_at\\n)\\nVALUES (\\n    '{{$json.callid}}', '{{$json.sentiment}}', '{{$json.topic}}', '{{$json.significant_term}}',\\n    '{{$json.general_value}}', '{{$json.general_experience}}', '{{$json.email_inquired}}',\\n    '{{$json.positive_comment_passed_sale}}', '{{$json.negative_comment_passed_sale}}',\\n    '{{$json.price_negotiated}}', '{{$json.customer_addressed_politely}}',\\n    '{{$json.conversation_fun}}', '{{$json.service_advantages_mentioned}}',\\n    '{{$json.other_platforms_mentioned}}', '{{$json.sale_outcome}}', '{{$json.sale_value_scale}}',\\n    '{{$json.asked_if_commenters_known}}', '{{$json.high_profile_advantages_mentioned}}',\\n    '{{$json.coordination_confidence}}', '{{$json.agent_conflicts_resolved}}',\\n    '{{$json.language_detected}}', '{{$json.analysis_method}}', {{$json.agent_count}},\\n    '{{$json.llm_error_message}}', '{{$json.calltype}}', '{{$json.ext}}', '{{$json.phn}}',\\n    '{{$json.url}}', '{{$json.call_direction}}', '{{$json.recording_url}}',\\n    '{{$json.skip_reason}}', {{$json.skip}}, '{{$json.h_agent}}', '{{$json.s3_uploaded}}',\\n    '{{$json.stt_processed_calls}}', '{{$json.agent}}', '{{$json.response}}',\\n    REPLACE('{{$json.calltext}}', '\\\\'', '''' ), '{{$json.note}}', '{{$json.transcript_s3_url}}',\\n    '{{$json.analysis_s3_url}}', '{{$json.llm_processed}}', '{{$json.stt_processed_pipe}}',\\n    '{{$json.llm_error_pipe}}', '{{$json.created_at}}', '{{$json.updated_at}}'\\n);\\n\\n\",\n        \"options\": {}\n      },\n      \"id\": \"e0d04c53-b4d2-435e-a615-512c011e4063\",\n      \"name\": \"Insert If Not Exists\",\n      \"type\": \"n8n-nodes-base.mySql\",\n      \"typeVersion\": 4.1,\n      \"position\": [\n        1040,\n        500\n      ],\n      \"credentials\": {\n        \"mySql\": {\n          \"id\": \"REPLACE_WITH_YOUR_MYSQL_CREDENTIAL_ID\",\n          \"name\": \"REPLACE_WITH_YOUR_MYSQL_CREDENTIAL_NAME\"\n        }\n      }\n    }\n  ],\n  \"connections\": {\n    \"Schedule\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Fetch New/Updated Data\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Fetch New/Updated Data\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Insert If Not Exists\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    }\n  },\n  \"active\": false,\n  \"settings\": {\n    \"executionOrder\": \"v1\"\n  },\n  \"id\": \"Qz5Zp2JtLhA7p9bF\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "980def0b-2717-4144-9ae7-741d73b12b81",
+      "name": "Json fields"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "binaryPropertyName": "={{ $json }}",
+        "options": {
+          "format": true,
+          "fileName": "Call_analysis dwh to marcaspiocrm"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "439b50d3-d5e0-47d7-8e41-f3c79bdc2792",
+      "name": "Convert to Json File"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "workflowId": {
+          "__rl": true,
+          "value": "XOj9qAufqOsZdutV",
+          "mode": "list",
+          "cachedResultName": "W1 (#XOj9qAufqOsZdutV)"
+        },
+        "workflowObject": "={\n  \"name\": \"PostgreSQL to MySQL Sync (Manual Setup)\",\n  \"nodes\": [\n    {\n      \"parameters\": {\n        \"rule\": \"cron\",\n        \"cronExpression\": \"*/30 * * * *\"\n      },\n      \"id\": \"e6f43e06-96b6-4b8a-80e9-3b687f48b941\",\n      \"name\": \"Schedule\",\n      \"type\": \"n8n-nodes-base.schedule\",\n      \"position\": [\n        600,\n        500\n      ]\n    },\n    {\n      \"parameters\": {\n        \"operation\": \"executeQuery\",\n        \"query\": \"-- Buraya PostgreSQL sorgusunu yapıştıracaksınız.\",\n        \"options\": {}\n      },\n      \"id\": \"18f15d73-2e21-4d37-8898-33306ed9d96c\",\n      \"name\": \"Fetch New/Updated Data\",\n      \"type\": \"n8n-nodes-base.postgreSql\",\n      \"position\": [\n        820,\n        500\n      ]\n    },\n    {\n      \"parameters\": {\n        \"operation\": \"executeQuery\",\n        \"query\": \"-- Buraya MySQL sorgusunu yapıştıracaksınız.\",\n        \"options\": {}\n      },\n      \"id\": \"e0d04c53-b4d2-435e-a615-512c011e4063\",\n      \"name\": \"Insert If Not Exists\",\n      \"type\": \"n8n-nodes-base.mySql\",\n      \"position\": [\n        1040,\n        500\n      ]\n    }\n  ],\n  \"connections\": {\n    \"Schedule\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Fetch New/Updated Data\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Fetch New/Updated Data\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Insert If Not Exists\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    }\n  },\n  \"active\": false,\n  \"settings\": {\n    \"executionOrder\": \"v1\"\n  },\n  \"id\": \"JgD4K2JtLhA7p9cG_manual\"\n}\n\n",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        440,
+        220
+      ],
+      "id": "37c0b723-933a-48e0-90ab-0b4282162e48",
+      "name": "n8n",
+      "credentials": {
+        "n8nApi": {
+          "id": "C3KK1q4rbFU4CWZy",
+          "name": "n8n account api"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Json fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Json fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to Json File",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "n8n",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

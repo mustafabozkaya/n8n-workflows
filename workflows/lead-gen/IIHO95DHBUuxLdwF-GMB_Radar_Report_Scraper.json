@@ -1,0 +1,1058 @@
+{
+  "name": "GMB Radar Report Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "function extractTextFromHtml(html) {\n    if (!html) return '';\n    return html.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\nfunction extractBusinessInfo(html) {\n    if (!html) return {};\n    \n    const result = {};\n    \n    const businessNameMatch = html.match(/<span class=\"bizname\"[^>]*>(.*?)<\\/span>/);\n    if (businessNameMatch) {\n        result.businessName = extractTextFromHtml(businessNameMatch[1]);\n    }\n    \n    const addressMatch = html.match(/<span class=\"center-block\"[^>]*>.*?<\\/i>(.*?)<\\/span>/);\n    if (addressMatch) {\n        result.address = extractTextFromHtml(addressMatch[1]);\n    }\n    \n    const ratingMatch = html.match(/title=\"([^\"]*out of 5)\"/);\n    if (ratingMatch) {\n        result.rating = ratingMatch[1];\n    }\n    \n    const reviewMatch = html.match(/\\((\\d+)\\s*Reviews?\\)/i);\n    if (reviewMatch) {\n        result.reviews = reviewMatch[1];\n    }\n    \n    return result;\n}\n\nfunction extractCompetitorInfo(html) {\n    if (!html) return {};\n    \n    const result = {};\n    \n    const businessNameMatch = html.match(/<a[^>]*title=\"[^\"]*\"[^>]*>(.*?)<\\/a>/);\n    if (businessNameMatch) {\n        result.businessName = extractTextFromHtml(businessNameMatch[1]);\n    }\n    \n    const ratingMatch = html.match(/title=\"([^\"]*out of 5)\"/);\n    if (ratingMatch) {\n        result.rating = ratingMatch[1];\n    }\n    \n    const reviewMatch = html.match(/\\((\\d+)\\)/);\n    if (reviewMatch) {\n        result.reviews = reviewMatch[1];\n    }\n    \n    const addressMatch = html.match(/<span class=\"center-block\"[^>]*>.*?<\\/i>(.*?)<\\/span>/);\n    if (addressMatch) {\n        result.address = extractTextFromHtml(addressMatch[1]);\n    }\n    \n    const categoryMatch = html.match(/<strong title=\"primary category\"[^>]*>(.*?)<\\/strong>/);\n    if (categoryMatch) {\n        result.category = extractTextFromHtml(categoryMatch[1]);\n    }\n    \n    const websiteMatch = html.match(/<a href=\"\\/\\/([^\"]*)\"[^>]*>([^<]*)<\\/a>/);\n    if (websiteMatch) {\n        result.website = extractTextFromHtml(websiteMatch[2]);\n    }\n    \n    const photoMatch = html.match(/<i class=\"fa fa-fw fa-photo\"[^>]*><\\/i>(\\d+)/);\n    if (photoMatch) {\n        result.photos = photoMatch[1];\n    }\n    \n    result.claimed = html.includes('Claimed') ? 'Evet' : 'Hayır';\n    \n    return result;\n}\n\nfunction main() {\n    try {\n        const inputData = $input.all()[0].json;\n        \n        const extractedData = {\n            scan_information: [],\n            rank_summary: [],\n            top_competitors: [],\n            sponsored_listings: []\n        };\n        \n        // Scan Information işle\n        if (inputData.scan_information_html) {\n            const businessInfo = extractBusinessInfo(inputData.scan_information_html);\n            \n            if (businessInfo.businessName) {\n                extractedData.scan_information.push({\n                    'Özellik': 'İşletme Adı',\n                    'Değer': businessInfo.businessName\n                });\n            }\n            \n            if (businessInfo.address) {\n                extractedData.scan_information.push({\n                    'Özellik': 'Adres',\n                    'Değer': businessInfo.address\n                });\n            }\n            \n            if (businessInfo.rating) {\n                extractedData.scan_information.push({\n                    'Özellik': 'Puan',\n                    'Değer': businessInfo.rating\n                });\n            }\n            \n            if (businessInfo.reviews) {\n                extractedData.scan_information.push({\n                    'Özellik': 'Yorum Sayısı',\n                    'Değer': businessInfo.reviews\n                });\n            }\n            \n            // Keyword ve Date bilgilerini çıkar\n            const keywordMatch = inputData.scan_information_html.match(/<td>Keyword<\\/td>\\s*<td[^>]*>(.*?)<\\/td>/s);\n            if (keywordMatch) {\n                const keywordText = extractTextFromHtml(keywordMatch[1]);\n                extractedData.scan_information.push({\n                    'Özellik': 'Keyword',\n                    'Değer': keywordText\n                });\n            }\n            \n            const dateMatch = inputData.scan_information_html.match(/<td>Date<\\/td>\\s*<td[^>]*>(.*?)<\\/td>/s);\n            if (dateMatch) {\n                const dateText = extractTextFromHtml(dateMatch[1]);\n                extractedData.scan_information.push({\n                    'Özellik': 'Date',\n                    'Değer': dateText\n                });\n            }\n        }\n        \n        // Rank Summary işle\n        if (inputData.rank_summary_html) {\n            const rankMatches = inputData.rank_summary_html.matchAll(/<td[^>]*>(.*?)<\\/td>\\s*<td[^>]*>(.*?)<\\/td>/gs);\n            \n            for (const match of rankMatches) {\n                const metric = extractTextFromHtml(match[1]);\n                const value = extractTextFromHtml(match[2]);\n                \n                if (metric && value) {\n                    extractedData.rank_summary.push({\n                        'Metrik': metric,\n                        'Değer': value\n                    });\n                }\n            }\n        }\n        \n        // Top Competitors işle\n        if (inputData.top_competitors_html) {\n            const competitorRows = inputData.top_competitors_html.split('<tr class=');\n            \n            competitorRows.forEach((row, rowIndex) => {\n                if (rowIndex === 0) return; // İlk element boş\n                \n                const rankMatch = row.match(/<td[^>]*>(\\d+)<\\/td>/);\n                if (!rankMatch) return;\n                \n                const rank = rankMatch[1];\n                const competitorInfo = extractCompetitorInfo(row);\n                \n                const foundAtMatch = row.match(/<h5[^>]*>\\s*(\\d+)\\s*<\\/h5>/);\n                const foundAt = foundAtMatch ? foundAtMatch[1] : '';\n                \n                const avgRankMatch = row.match(/<span class=\"dotlg2[^\"]*\">([^<]*)<\\/span>/);\n                const avgRank = avgRankMatch ? avgRankMatch[1] : '';\n                \n                extractedData.top_competitors.push({\n                    'Sıra': rank,\n                    'İşletme Adı': competitorInfo.businessName || '',\n                    'Puan': competitorInfo.rating || '',\n                    'Yorum Sayısı': competitorInfo.reviews || '',\n                    'Adres': competitorInfo.address || '',\n                    'Kategori': competitorInfo.category || '',\n                    'Website': competitorInfo.website || '',\n                    'Fotoğraf Sayısı': competitorInfo.photos || '',\n                    'Claimed': competitorInfo.claimed || 'Hayır',\n                    'Bulunduğu Lokasyon': foundAt,\n                    'Ortalama Sıra': avgRank\n                });\n            });\n        }\n        \n        // Sponsored Listings işle\n        if (inputData.sponsored_listings_html) {\n            const sponsoredRows = inputData.sponsored_listings_html.split('<tr class=');\n            \n            sponsoredRows.forEach((row, rowIndex) => {\n                if (rowIndex === 0) return;\n                \n                const rankMatch = row.match(/<td[^>]*>(\\d+)<\\/td>/);\n                if (!rankMatch) return;\n                \n                const rank = rankMatch[1];\n                const sponsoredInfo = extractCompetitorInfo(row);\n                \n                const appearedMatch = row.match(/Appeared in <strong>(\\d+)<\\/strong> searches/);\n                const appeared = appearedMatch ? `Appeared in ${appearedMatch[1]} searches` : '';\n                \n                extractedData.sponsored_listings.push({\n                    'Sıra': rank,\n                    'İşletme Adı': sponsoredInfo.businessName || '',\n                    'Puan': sponsoredInfo.rating || '',\n                    'Yorum Sayısı': sponsoredInfo.reviews || '',\n                    'Website': sponsoredInfo.website || '',\n                    'Göründüğü Arama': appeared\n                });\n            });\n        }\n        \n        return {\n            json: {\n                success: true,\n                message: 'HTML veriler başarıyla işlendi',\n                data: extractedData,\n                processedAt: new Date().toISOString()\n            }\n        };\n        \n    } catch (error) {\n        return {\n            json: {\n                success: false,\n                error: error.message,\n                stack: error.stack\n            }\n        };\n    }\n}\n\nreturn main();"
+      },
+      "id": "0e9421b3-6086-438d-b112-992040a2aab4",
+      "name": "Verileri Regex ile Ayrıştır",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow",
+          "mode": "list",
+          "cachedResultName": "Kopyası - Mektup Gönderme Şablonu\n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1695340203,
+          "mode": "list",
+          "cachedResultName": "27-08-2025",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow/edit#gid=1695340203"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Processed",
+              "lookupValue": "0"
+            }
+          ]
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -2620,
+        300
+      ],
+      "id": "9414278c-87e0-4c48-a2f9-48011a1b9e8c",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yCE35U9mjT5T0ReN",
+          "name": "Google Sheets ilter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Processed alanı 0 olan VE Report alanı boş olmayan + geçerli URL içeren kayıtları filtrele\nconst filtered = items.filter(item => {\n    // Processed kontrolü\n    const processed = item.json.Processed;\n    const isNotProcessed = processed === 0 || processed === \"0\";\n    \n    // Report URL kontrolü\n    const hasValidReport = item.json.Report &&\n                          item.json.Report.trim() !== \"\" &&\n                          item.json.Report.includes('local-rank.report');\n    \n    // Her iki koşul da sağlanmalı\n    return isNotProcessed && hasValidReport;\n});\n\n// Filtrelenmiş sonuçlardan ilk 20 kaydı al\nconst first20 = filtered.slice(0, 20);\n\nreturn first20;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2160,
+        300
+      ],
+      "id": "8a889883-19f8-4379-91f5-fb52e0ff82ca",
+      "name": "Report is valid url",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1900,
+        300
+      ],
+      "id": "f0f008c1-3b48-4a10-9753-ccd0d336894c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        680
+      ],
+      "id": "276c79c6-8848-40b2-9b1f-5f3c19bc28ce"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        700
+      ],
+      "id": "b3a95b11-01de-4ab4-ad5d-97927304ee1a",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "include": "except",
+        "excludeFields": "row_number",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1580,
+        320
+      ],
+      "id": "6518b134-8220-44c1-b603-51367f49d121",
+      "name": "Current  Company"
+    },
+    {
+      "parameters": {
+        "url": "=http://api.scrape.do/?url={{ $json.Report }}&token=bb8650e936fc4edaae8ecb2548e2edabc0595f34718&render=true&waitUntil=networkidle2&customWait=5&blockResources=false",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "0aa12ed6-51a8-4381-9f27-f934d2e2d48a",
+      "name": "Scrape GMB Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1320,
+        320
+      ],
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function main() {\n    try {\n        const inputItems = $input.all();\n        \n        let companyInfo = {};\n        let scrapedData = null;\n        \n        // Input'ları ayır ve bul\n        inputItems.forEach(item => {\n            if (item.json.success && item.json.data) {\n                scrapedData = item.json;\n            } else if (item.json.id || item.json['İşletme Adı']) {\n                companyInfo = item.json;\n            }\n        });\n        \n        if (!scrapedData && inputItems.length > 0) {\n            const firstItem = inputItems[0].json;\n            if (Array.isArray(firstItem) && firstItem[0] && firstItem[0].success) {\n                scrapedData = firstItem[0];\n            } else if (firstItem.success && firstItem.data) {\n                scrapedData = firstItem;\n            }\n        }\n        \n        if (!scrapedData || !scrapedData.success || !scrapedData.data) {\n            throw new Error('Scraped data not found');\n        }\n        \n        const data = scrapedData.data;\n        \n        // Temel şirket bilgileri\n        let isletmeAdi = companyInfo['İşletme Adı'] || '';\n        let isletmeAdresi = companyInfo['İşletme Adresi'] || '';\n        let sehir = companyInfo['Şehir'] || '';\n        let yoneticiAdi = companyInfo['Yönetici Adı'] || '';\n        let yoneticiCinsiyet = companyInfo['Yönetici Cinsiyeti'] || '';\n        let reportUrl = companyInfo['Report'] || '';\n        \n        // Rapor verilerinden bilgileri çıkar\n        let keyword = '';\n        let date = '';\n        \n        if (data.scan_information) {\n            data.scan_information.forEach(item => {\n                switch(item['Özellik']) {\n                    case 'İşletme Adı':\n                        if (!isletmeAdi) isletmeAdi = item['Değer'] || '';\n                        break;\n                    case 'Adres':\n                        if (!isletmeAdresi) {\n                            isletmeAdresi = item['Değer'] || '';\n                            if (!sehir && isletmeAdresi) {\n                                const adresParts = isletmeAdresi.split(',');\n                                if (adresParts.length > 0) {\n                                    sehir = adresParts[adresParts.length - 1].trim();\n                                }\n                            }\n                        }\n                        break;\n                    case 'Keyword':\n                        keyword = item['Değer'] || '';\n                        break;\n                    case 'Date':\n                        date = item['Değer'] || '';\n                        break;\n                }\n            });\n        }\n        \n        // Kategori bilgisi\n        let category = '';\n        let categoryTranslate = '';\n        if (keyword.includes('|')) {\n            category = keyword.split('|')[0].trim();\n            const translations = {\n                'Immobilienmakler': 'Emlakçı',\n                'Immobilienagentur': 'Emlak Acentesi', \n                'Immobilienberater': 'Emlak Danışmanı',\n                'Immobilienverwaltung': 'Emlak Yönetimi'\n            };\n            categoryTranslate = translations[category] || 'Emlakçı';\n        }\n        \n        // Sıralama özet bilgileri\n        let rankedLocations = 0;\n        let totalLocations = 25;\n        let averageRank = 0;\n        let bestRank = 0;\n        \n        if (data.rank_summary) {\n            data.rank_summary.forEach(item => {\n                const metrik = item['Metrik'] || '';\n                const deger = item['Değer'] || '';\n                \n                switch(metrik) {\n                    case 'Ranked Locations':\n                        if (deger.includes(' / ')) {\n                            const parts = deger.split(' / ');\n                            rankedLocations = parseInt(parts[0].trim()) || 0;\n                            totalLocations = parseInt(parts[1].trim()) || 25;\n                        }\n                        break;\n                    case 'Average rank':\n                        averageRank = parseFloat(deger) || 0;\n                        break;\n                    case 'Best rank':\n                        bestRank = parseInt(deger) || 0;\n                        break;\n                }\n            });\n        }\n        \n        // İşletmenin görünürlüğü - Ranked Locations'dan hesapla\n        const isletmeGorunurluk = totalLocations > 0 ? Math.round((rankedLocations / totalLocations) * 100) : 0;\n        \n        // Top Competitors'ı AR skoruna göre sırala (küçükten büyüğe)\n        let sortedCompetitors = [];\n        let isletmeArSirasi = \"20+\"; // Varsayılan olarak 20+\n        \n        if (data.top_competitors && data.top_competitors.length > 0) {\n            // Rakipleri ortalama sıra değerine göre sırala\n            const competitorsWithScore = data.top_competitors.map(comp => ({\n                ...comp,\n                avgRankFloat: parseFloat(comp['Ortalama Sıra']) || 999\n            }));\n            \n            // Küçükten büyüğe sırala (en iyi AR skoru = en küçük sayı)\n            sortedCompetitors = competitorsWithScore.sort((a, b) => a.avgRankFloat - b.avgRankFloat);\n            \n            // İşletmenin AR sırasını bul\n            if (averageRank > 0) {\n                let pozisyon = 1;\n                \n                // Sıralı listede işletmenin yerini bul\n                for (let i = 0; i < sortedCompetitors.length; i++) {\n                    if (averageRank > sortedCompetitors[i].avgRankFloat) {\n                        pozisyon++;\n                    }\n                }\n                \n                // Eğer pozisyon 20 veya daha azsa o pozisyonu yaz, değilse \"20+\"\n                if (pozisyon <= 20) {\n                    isletmeArSirasi = pozisyon.toString();\n                } else {\n                    isletmeArSirasi = \"20+\";\n                }\n            }\n        }\n        \n        // En iyi 3 rakibi al (sıralı listeden)\n        let rakip1 = '', rakip2 = '', rakip3 = '';\n        let rakip1Gorunurluk = 0, rakip2Gorunurluk = 0, rakip3Gorunurluk = 0;\n        let rakip1GorummeAdedi = '0', rakip2GorummeAdedi = '0', rakip3GorummeAdedi = '0';\n        let rakip1OrtalamaSira = '0', rakip2OrtalamaSira = '0', rakip3OrtalamaSira = '0';\n        \n        if (sortedCompetitors.length > 0) {\n            // Rakip 1 (en iyi AR skoru)\n            if (sortedCompetitors[0]) {\n                const r1 = sortedCompetitors[0];\n                rakip1 = r1['İşletme Adı'] || '';\n                rakip1GorummeAdedi = r1['Bulunduğu Lokasyon'] || '0';\n                rakip1OrtalamaSira = r1['Ortalama Sıra'] || '0';\n                const r1Lokasyon = parseInt(rakip1GorummeAdedi) || 0;\n                rakip1Gorunurluk = Math.round((r1Lokasyon / 25) * 100);\n            }\n            \n            // Rakip 2\n            if (sortedCompetitors[1]) {\n                const r2 = sortedCompetitors[1];\n                rakip2 = r2['İşletme Adı'] || '';\n                rakip2GorummeAdedi = r2['Bulunduğu Lokasyon'] || '0';\n                rakip2OrtalamaSira = r2['Ortalama Sıra'] || '0';\n                const r2Lokasyon = parseInt(rakip2GorummeAdedi) || 0;\n                rakip2Gorunurluk = Math.round((r2Lokasyon / 25) * 100);\n            }\n            \n            // Rakip 3\n            if (sortedCompetitors[2]) {\n                const r3 = sortedCompetitors[2];\n                rakip3 = r3['İşletme Adı'] || '';\n                rakip3GorummeAdedi = r3['Bulunduğu Lokasyon'] || '0';\n                rakip3OrtalamaSira = r3['Ortalama Sıra'] || '0';\n                const r3Lokasyon = parseInt(rakip3GorummeAdedi) || 0;\n                rakip3Gorunurluk = Math.round((r3Lokasyon / 25) * 100);\n            }\n        }\n        \n        // Rakipler string'i oluştur\n        const rakipler = [rakip1, rakip2, rakip3].filter(r => r).join(', ');\n        \n        // Görünürlük farkını hesapla (düzeltilmiş formül)\n        // 100 - İşletmenin Görünürlük %\n        const gorunurlukFarkSayi = 100 - isletmeGorunurluk;\n        const gorunurlukFark = gorunurlukFarkSayi + '%';\n        \n        // Competitor report URL'si\n        let competitorReportUrl = '';\n        if (reportUrl) {\n            competitorReportUrl = reportUrl.replace('/scan/', '/scans/competitors/');\n        }\n        \n        // Final result objesi\n        const resultObj = {\n            'id': companyInfo.id || '',\n            'İşletme Adı': isletmeAdi,\n            'İşletme Adresi': isletmeAdresi,\n            'Şehir': sehir,\n            'Yönetici Adı': yoneticiAdi,\n            'Yönetici Cinsiyeti': yoneticiCinsiyet,\n            'category': category,\n            'Category Translate': categoryTranslate,\n            'Report': reportUrl,\n            \"Competitor's Report\": competitorReportUrl,\n            'İşletmenin Görünürlük': isletmeGorunurluk + '%',\n            'Görünürlük FARK': gorunurlukFark,\n            'İşletmenin Görünme Adedi': rankedLocations.toString(),\n            'İşletmenin Ortalama Sırası': averageRank.toString(),\n            'İşletme AR Sırası': isletmeArSirasi, // String olarak \"3\" veya \"20+\"\n            'Rakip 1': rakip1,\n            'Rakip 2': rakip2,\n            'Rakip 3': rakip3,\n            'rakipler': rakipler,\n            'Rakip 1 Görünürlük': rakip1Gorunurluk + '%',\n            'Rakip 1 Görünme Adedi': rakip1GorummeAdedi,\n            'Rakip 1 Ortalama Sıra': rakip1OrtalamaSira,\n            'Rakip 2 Görünürlük': rakip2Gorunurluk + '%',\n            'Rakip 2 Görünme Adedi': rakip2GorummeAdedi,\n            'Rakip 2 Ortalama Sıra': rakip2OrtalamaSira,\n            'Rakip 3 Görünürlük': rakip3Gorunurluk + '%',\n            'Rakip 3 Görünme Adedi': rakip3GorummeAdedi,\n            'Rakip 3 Ortalama Sıra': rakip3OrtalamaSira,\n            'R1LİNK': '',\n            'R2LİNK': '',\n            'R3LİNK': '',\n            '@image': '',\n            '@image2': ''\n        };\n        \n        return [{\n            json: resultObj\n        }];\n        \n    } catch (error) {\n        return [{\n            json: {\n                'Error': error.message,\n                'Stack': error.stack,\n                'Timestamp': new Date().toISOString()\n            }\n        }];\n    }\n}\n\nreturn main();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        320
+      ],
+      "id": "c9066d6b-5340-4a8b-9d27-d72290526dea",
+      "name": "Process Main Data"
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "scan_information_html",
+              "cssSelector": "#wrapper1 > div.content > div.clearfix > div.col-lg-5 > div > div > table",
+              "returnValue": "html"
+            },
+            {
+              "key": "rank_summary_html",
+              "cssSelector": "#wrapper1 > div.content > div.clearfix > div.col-lg-5 > div > div > div > div:nth-child(1) > table",
+              "returnValue": "html"
+            },
+            {
+              "key": "top_competitors_html",
+              "cssSelector": "#tbl_comp_rank",
+              "returnValue": "html"
+            },
+            {
+              "key": "sponsored_listings_html",
+              "cssSelector": "#tbl_ads_rank",
+              "returnValue": "html"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16641d9d-40bb-4152-a062-f5cc4d2f4487",
+      "name": "Tüm Ham Veriyi Ayıkla",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        -940,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://194.5.236.83:6049/screenshot",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.Report }}"
+            },
+            {
+              "name": "selector",
+              "value": "#map_canvas"
+            },
+            {
+              "name": "width",
+              "value": "1960"
+            },
+            {
+              "name": "height",
+              "value": "1080"
+            },
+            {
+              "name": "scale",
+              "value": "1"
+            },
+            {
+              "name": "wait",
+              "value": "1.5"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1280,
+        -60
+      ],
+      "id": "36c4dc4e-8914-4304-bf39-a15cc0c7f603",
+      "name": "HTTP Request",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow",
+          "mode": "list",
+          "cachedResultName": "Kopyası - Mektup Gönderme Şablonu\n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1695340203,
+          "mode": "list",
+          "cachedResultName": "27-08-2025",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1l0xWGxWB0vSvk1URchq2VWx6mv3ymjE7q8Dn2jtSFow/edit#gid=1695340203"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Current  Company').item.json.id }}",
+            "Processed": "1",
+            "Şehir": "={{ $json['Şehir'] }}",
+            "Yönetici Cinsiyeti": "={{ $json['Yönetici Cinsiyeti'] }}",
+            "Yönetici Adı": "={{ $json['Yönetici Adı'] }}",
+            "category": "={{ $json.category }}",
+            "Category Translate": "={{ $json['Category Translate'] }}",
+            "İşletmenin Görünürlük": "={{ $json['İşletmenin Görünürlük'] }}",
+            "Görünürlük FARK": "={{ $json['Görünürlük FARK'] }}",
+            "İşletmenin Görünme Adedi": "={{ $json['İşletmenin Görünme Adedi'] }}",
+            "İşletmenin Ortalama Sırası": "={{ $json['İşletmenin Ortalama Sırası'] }}",
+            "İşletme AR Sırası": "={{ $json['İşletme AR Sırası'] }}",
+            "Rakip 1": "={{ $json['Rakip 1'] }}",
+            "Rakip 2": "={{ $json['Rakip 2'] }}",
+            "Rakip 3": "={{ $json['Rakip 3'] }}",
+            "rakipler": "={{ $json.rakipler }}",
+            "Rakip 1 Görünürlük": "={{ $json['Rakip 1 Görünürlük'] }}",
+            "Rakip 1 Görünme Adedi": "={{ $json['Rakip 1 Görünme Adedi'] }}",
+            "Rakip 1 Ortalama Sıra": "={{ $json['Rakip 1 Ortalama Sıra'] }}",
+            "Rakip 2 Görünürlük": "={{ $json['Rakip 2 Görünürlük'] }}",
+            "Rakip 2 Görünme Adedi": "={{ $json['Rakip 2 Görünme Adedi'] }}",
+            "Rakip 2 Ortalama Sıra": "={{ $json['Rakip 2 Ortalama Sıra'] }}",
+            "Rakip 3 Görünürlük": "={{ $json['Rakip 3 Görünürlük'] }}",
+            "Rakip 3 Görünme Adedi": "={{ $json['Rakip 3 Görünme Adedi'] }}",
+            "Rakip 3 Ortalama Sıra": "={{ $json['Rakip 3 Ortalama Sıra'] }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "kategori",
+              "displayName": "kategori",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Processed",
+              "displayName": "Processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "iyiler",
+              "displayName": "iyiler",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "İşletme Adı",
+              "displayName": "İşletme Adı",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "İşletme Adresi",
+              "displayName": "İşletme Adresi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Şehir",
+              "displayName": "Şehir",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Yönetici Adı",
+              "displayName": "Yönetici Adı",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Yönetici Cinsiyeti",
+              "displayName": "Yönetici Cinsiyeti",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category Translate",
+              "displayName": "Category Translate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Report",
+              "displayName": "Report",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Competitor's Report",
+              "displayName": "Competitor's Report",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "İşletmenin Görünürlük",
+              "displayName": "İşletmenin Görünürlük",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Görünürlük FARK",
+              "displayName": "Görünürlük FARK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "İşletmenin Görünme Adedi",
+              "displayName": "İşletmenin Görünme Adedi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "İşletmenin Ortalama Sırası",
+              "displayName": "İşletmenin Ortalama Sırası",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "İşletme AR Sırası",
+              "displayName": "İşletme AR Sırası",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 1",
+              "displayName": "Rakip 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 2",
+              "displayName": "Rakip 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 3",
+              "displayName": "Rakip 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rakipler",
+              "displayName": "rakipler",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 1 Görünürlük",
+              "displayName": "Rakip 1 Görünürlük",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 1 Görünme Adedi",
+              "displayName": "Rakip 1 Görünme Adedi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 1 Ortalama Sıra",
+              "displayName": "Rakip 1 Ortalama Sıra",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 2 Görünürlük",
+              "displayName": "Rakip 2 Görünürlük",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 2 Görünme Adedi",
+              "displayName": "Rakip 2 Görünme Adedi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 2 Ortalama Sıra",
+              "displayName": "Rakip 2 Ortalama Sıra",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 3 Görünürlük",
+              "displayName": "Rakip 3 Görünürlük",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 3 Görünme Adedi",
+              "displayName": "Rakip 3 Görünme Adedi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rakip 3 Ortalama Sıra",
+              "displayName": "Rakip 3 Ortalama Sıra",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "R1LİNK",
+              "displayName": "R1LİNK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "R2LİNK",
+              "displayName": "R2LİNK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "R3LİNK",
+              "displayName": "R3LİNK",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "@image",
+              "displayName": "@image",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "@image2",
+              "displayName": "@image2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        800,
+        380
+      ],
+      "id": "01c92268-9f70-42d5-87d6-a851dc2ce8f5",
+      "name": "Google Sheets1",
+      "retryOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yCE35U9mjT5T0ReN",
+          "name": "Google Sheets ilter"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2860,
+        520
+      ],
+      "id": "da7d6cd2-162d-4947-863c-cfd384d5db30",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.id }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1IaDQs9MUL0G_UdymVfQqIWqDB7gr2b8-",
+          "mode": "list",
+          "cachedResultName": "Maps_screenshots",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1IaDQs9MUL0G_UdymVfQqIWqDB7gr2b8-"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -700,
+        -60
+      ],
+      "id": "26eb74f0-d01c-4bb3-aa36-c4531b771347",
+      "name": "Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "fElH0FOckjHIcpg0",
+          "name": "Google Drive İlter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d8bfe13d-2afb-4ea4-bb93-db1bc791ca9f",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "={{ $('Current  Company').item.json.id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -100,
+        -60
+      ],
+      "id": "fbee8c90-0dee-46ab-96bd-d9d4446668c4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98191f46-d4d7-4137-8e79-a3534f6df14f",
+              "name": "name",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "b57547ad-e091-42fa-a5a3-50024afd4e0c",
+              "name": "webContentLink",
+              "value": "={{ $json.webContentLink }}",
+              "type": "string"
+            },
+            {
+              "id": "32dc864e-6060-4ce2-bcff-adc07e734cd7",
+              "name": "webViewLink",
+              "value": "={{ $json.webViewLink }}",
+              "type": "string"
+            },
+            {
+              "id": "5bebddb3-63e6-4477-abbc-f6bf0042e8a2",
+              "name": "iconLink",
+              "value": "={{ $json.iconLink }}",
+              "type": "string"
+            },
+            {
+              "id": "10b4fb61-9e38-4cc8-ae91-fad84eb0041d",
+              "name": "thumbnailLink",
+              "value": "={{ $json.thumbnailLink }}",
+              "type": "string"
+            },
+            {
+              "id": "c4eba980-b483-4e67-847f-73249314d541",
+              "name": "mimeType",
+              "value": "={{ $json.mimeType }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -380,
+        -60
+      ],
+      "id": "516c269b-6613-4b3a-9b95-54c2194afce5",
+      "name": "Maps İnfo"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        300
+      ],
+      "id": "4edf6c74-38d2-4a78-9c8d-db3cfac566d9",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        620,
+        300
+      ],
+      "id": "009a57c5-e4ba-46ee-be9a-e401a55f99a5",
+      "name": "Load  Data"
+    }
+  ],
+  "connections": {
+    "Verileri Regex ile Ayrıştır": {
+      "main": [
+        [
+          {
+            "node": "Process Main Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Report is valid url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report is valid url": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Current  Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Current  Company": {
+      "main": [
+        [
+          {
+            "node": "Scrape GMB Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape GMB Report": {
+      "main": [
+        [
+          {
+            "node": "Tüm Ham Veriyi Ayıkla",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Main Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Tüm Ham Veriyi Ayıkla": {
+      "main": [
+        [
+          {
+            "node": "Verileri Regex ile Ayrıştır",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets1": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Maps İnfo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maps İnfo": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Load  Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

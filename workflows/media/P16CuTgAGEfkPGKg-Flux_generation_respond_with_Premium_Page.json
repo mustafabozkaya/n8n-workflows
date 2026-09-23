@@ -1,0 +1,781 @@
+{
+  "name": "Flux generation respond with Premium Page",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=üçte bir kuralı, altın oran, hiper-maksimalist, canlı neon, yüksek kontrast, octane render, fotogerçekçilik, 8k ::7 --ar 16:9 --s 1000\n\nEkrandan fırlıyormuş gibi görünen cesur neon renkler ve eğlenceli şekillerle dolu, enerjik ve neşeli bir sahne tasarla. Görüntü, neşe ve hareket hissi uyandırmalı; akışkan, organik formlar ve abartılı, çizgi film tarzı oranlar kullanılmalı. Zıt ve doygun tonlar ile dinamik aydınlatma kullanarak canlı bir atmosfer oluştur. Oyuncu bir görsel akış yaratmak için asimetrik ve dengeli kompozisyonları bir arada kullan. 8K çözünürlükte, Octane Render ile canlı, parlak dokular ve fotogerçekçi aydınlatma efektleriyle hiper-maksimalist bir yaklaşımla render al"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "74c7d7e3-16f3-4493-86f9-4cbb5f7e4453",
+      "name": "Vivid Pop Explosion",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        740
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=üçte bir kuralı, asimetrik kompozisyon, glitch art, pikselleşme, VHS paraziti, octane render, unreal engine, 8k ::7 --ar 16:9 --s 1200\n\nDijital çürüme ve bozulmuş görsellerle dolu, bozulmuş bir post-analog dünya tasarla. Parçalanmış bir estetik yaratmak için pikselleşmiş öğeler, VHS paraziti ve neon bozulmalar kullan. Soluk arka planlara karşı cesur ve zıt renkler kullanarak yüksek kontrastlı, dünya dışı bir his oluştur. Kompozisyon, kaotik ama kasıtlı bir görsel dengeye odaklanan asimetrik kurallara uygun olmalı"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "24b9c075-8543-422f-866a-092cb6332214",
+      "name": "Post-Analog Glitchscape",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        180
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=Include: "
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "9283193c-fcbf-4d78-ac26-982d7ac24101",
+      "name": "None",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        1040
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n \"formSubmittedText\": \"Flux API failed. It does this ~10% of the time. Refresh and try again.\"\n}",
+        "options": {}
+      },
+      "id": "75eef25e-0dab-4c7c-beae-1bda599b0d2d",
+      "name": "Respond with error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        680,
+        520
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "Hyper-Surreal Escape",
+                    "id": "4cc70972-93ef-4451-8ea9-39763683a955"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hyper-Surreal Escape"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "106969fa-994c-4b1e-b693-fc0b48ce5f3d",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "Post-Analog Glitchscape"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Post-Analog Glitchscape"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "24318e7d-4dc1-4369-b045-bb7d0a484def",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "AI Dystopia"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AI Dystopia"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "a80911ff-67fc-416d-b135-0401c336d6d8",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "Neon Fauvism"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Neon Fauvism"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "7fdeec28-194e-415e-8da2-8bac90e4c011",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "Vivid Pop Explosion"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Vivid Pop Explosion"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "f355de24-3553-4253-b2b5-60baba63eea5",
+                    "leftValue": "={{ $json.Style }}",
+                    "rightValue": "Portrait photography",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Portrait photography"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "0393c9ac-6c43-4e7d-b00a-669d637f8dad",
+      "name": "Route by style",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -380,
+        400
+      ],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.together.xyz/v1/images/generations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "black-forest-labs/FLUX.1-schnell-Free"
+            },
+            {
+              "name": "prompt",
+              "value": "=Prompt: {{ $('Merge').item.json['Prompt to flux'] }} \n\nStyle: {{ $json.stylePrompt }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5d0c808e-e86e-4fa7-9f9b-edf7e29bf85d",
+      "name": "Resim Oluştur(together.ai)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        440,
+        500
+      ],
+      "notesInFlow": true,
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "YpghcJCT4OKcfl7M",
+          "name": "Bearer Auth Together.ai"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Resim Oluştur(together.ai)').item.json.data[0].url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "id": "afb89811-344b-48c5-8259-98bb6483b595",
+      "name": "Resmi Binary Olarak Getir"
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.id }}-inf-{{$json.data[0].timings.inference.round(4)}} .jpg",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "10RPS8p6ihl_xpAF7q8HdNQ51VuttEGyW",
+          "mode": "list",
+          "cachedResultName": "n8n_flux_img",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/10RPS8p6ihl_xpAF7q8HdNQ51VuttEGyW"
+        },
+        "options": {
+          "propertiesUi": {
+            "propertyValues": [
+              {
+                "key": "Promt",
+                "value": "={\n  \"promt\": {{$('Merge').item.json[\"Prompt to flux\"]}},\n  \"style\": {{$('Merge').item.json[\"stylePrompt\"]}}\n}"
+              },
+              {
+                "key": "Model",
+                "value": "={{ $json.model}}"
+              },
+              {
+                "key": "Url",
+                "value": "={{ $json.url}}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1020,
+        620
+      ],
+      "id": "7c75d414-c187-49cb-b5ab-ab7c18923507",
+      "name": "Google Drive Yükle",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "NGVhiB9DZoWzwwwu",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=altın oran, üçte bir kuralı, cyberpunk, glitch art, octane render, sinematik gerçekçilik, 8k ::7 --ar 16:9 --s 1000\nGerçekliği büken, hiper-gerçekçi ama aynı zamanda sürreal bir manzara oluştur. Rüya gibi unsurlar ve abartılı oranlar içersin. Canlı, neredeyse neon renkler kullan ve hayranlık, oyun ve fantezi duygusuna odaklan"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "2520b42e-4a0e-4ea8-8d73-62fe339ce83f",
+      "name": "Hyper-Surreal Escape",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        0
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=asimetrik kompozisyon, altın oran, neon renkler, soyut formlar, octane render, sinematik gerçekçilik, unreal engine, 8k ::7 --ar 16:9 --s 1000\nGerçeklikten kopan neon renkler ve akışkan şekiller kullanarak cesur, canlı bir kompozisyon oluştur. Soyut formlara odaklan; Fovizm’in abartılı renk paletini modern dijital sanat teknikleriyle harmanla. Asimetrik kompozisyon ve dinamik aydınlatma kullan. Canlı ve yüksek enerjili bir estetikle render al"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "c3a5fad9-5f66-4d7e-b760-59c152647383",
+      "name": "Neon Fauvism",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        560
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=altın oran, üçte bir kuralı, cyberpunk, glitch art, octane render, sinematik gerçekçilik, 8k ::7 --ar 16:9 --s 1000\n\nMetalik dokular, dijital bozulmalar ve neon ışıklarla dolu, futuristik bir cyberpunk distopyası oluştur. Soğuk, distopik yapıları organik yaşam izleriyle harmanla. Görsel derinliği artırmak için fotogerçekçi aydınlatma ve dinamik yansımalar kullan"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "0a01847f-e65b-4451-9adc-4edd83892b0c",
+      "name": "AI Dystopia",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        380
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "returnAll": true,
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1000,
+        440
+      ],
+      "id": "303eeff5-df37-40c4-9026-ddc03b7b9426",
+      "name": "Google Drive file/folder",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "dopUdIyCHYNPjGGv",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "flux4free",
+        "formTitle": "FLUX.1 [schnell] Free  by Black Forest Labs. Resim Oluşturucu",
+        "formDescription": "Flux ile resim oluşturma formu",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Prompt to flux",
+              "fieldType": "textarea",
+              "placeholder": " An astronaut riding a horse in 35mm style",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Style",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Hyper-Surreal Escape"
+                  },
+                  {
+                    "option": "Neon Fauvism"
+                  },
+                  {
+                    "option": "Post-Analog Glitchscape"
+                  },
+                  {
+                    "option": "AI Dystopia"
+                  },
+                  {
+                    "option": "Vivid Pop Explosion"
+                  },
+                  {
+                    "option": "Portrait photography"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7b746b2c-80df-4e09-8c3b-a36e1d8a0a09",
+      "name": "Image Generator Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "position": [
+        -660,
+        460
+      ],
+      "webhookId": "a35eb005-f795-4c85-9d00-0fe9797cb509",
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ec60f33-b940-40a6-9f8a-cb944b7065f1",
+              "name": "stylePrompt",
+              "type": "string",
+              "value": "=Profesyonel bir fotoğraf stüdyosunun içi. Arka planda gri, dikişsiz bir fon. Modelin yüzünü aydınlatan büyük bir softbox (yumuşak ışık kutusu) ve yansımaları kontrol eden bir reflektör. Kenarda duran bir fotoğrafçı, 85mm portre lensi takılı kamerasıyla anı yakalamaya hazırlanıyor.\n\nAtmosfer odaklanmış ve sanatsal, ışık ve gölge arasındaki hassas denge vurgulanmış"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "63b4b9d6-56e4-4809-8010-e7928b19cdb7",
+      "name": "Portrait photography",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        0,
+        880
+      ],
+      "notesInFlow": true,
+      "typeVersion": 3.4,
+      "notes": " "
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<!DOCTYPE html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Flux Resim Oluşturma Sonucu</title>\n    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n    <link href=\"https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap\" rel=\"stylesheet\">\n    <style>\n        :root {\n            --dark-bg: #1a1a1d;\n            --card-bg: #2c2c34;\n            --text-primary: #f5f5f5;\n            --text-secondary: #a9a9b3;\n            --accent-primary: #8a42ff;\n            --accent-secondary: #4d4d5a;\n            --border-color: #40404a;\n            --success-color: #28a745;\n        }\n        body { font-family: 'Roboto', sans-serif; background-color: var(--dark-bg); color: var(--text-primary); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; box-sizing: border-box; }\n        .card { display: flex; flex-direction: column; width: 100%; max-width: 960px; background: var(--card-bg); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5); border: 1px solid var(--border-color); animation: fadeIn 0.8s ease-out; }\n        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }\n        .card-content { display: flex; flex-direction: column; }\n        .image-pane { flex-basis: 55%; padding: 20px; display: flex; align-items: center; justify-content: center; }\n        .image-pane img { max-width: 100%; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }\n        .details-pane { flex-basis: 45%; padding: 32px; background-color: rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; }\n        .details-header h1 { font-size: 2rem; font-weight: 700; margin: 0 0 8px 0; line-height: 1.2; }\n        .details-header .subtitle { font-size: 1rem; color: var(--text-secondary); margin-bottom: 24px; }\n        .section-title { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 500; }\n        .prompt-area { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 16px; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; font-style: italic; color: #dcdce0; }\n        .metadata-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }\n        .meta-item { background: var(--accent-secondary); padding: 12px; border-radius: 8px; overflow-wrap: break-word; }\n        .meta-item .label { font-size: 0.8rem; color: var(--text-secondary); }\n        .meta-item .value { font-size: 1rem; font-weight: 500; color: var(--text-primary); }\n        .actions-group { margin-top: auto; display: flex; gap: 12px; }\n        .btn { flex-grow: 1; padding: 14px; border-radius: 8px; border: none; font-size: 1rem; font-weight: 500; cursor: pointer; text-decoration: none; text-align: center; transition: all 0.2s ease; }\n        .btn-primary { background-color: var(--accent-primary); color: white; }\n        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(138, 66, 255, 0.4); }\n        .btn-secondary { background-color: var(--accent-secondary); color: var(--text-primary); }\n        .btn-secondary:hover { background-color: #5a5a6a; }\n        .copied-feedback { display: none; color: var(--success-color); font-size: 0.9rem; margin-left: 10px; }\n        @media (min-width: 800px) { .card-content { flex-direction: row; } }\n    </style>\n</head>\n<body>\n\n<div class=\"card\">\n    <div class=\"card-content\">\n        <div class=\"image-pane\">\n            <img src=\"{{ $('Resmi Binary Olarak Getir').item.json.data[0].url }}\" alt=\"Oluşturulan Resim\">\n        </div>\n        <div class=\"details-pane\">\n            <div class=\"details-header\">\n                <h1>Resim Oluşturuldu</h1>\n                <p class=\"subtitle\">Flux ile oluşturulan sanat eseriniz.</p>\n            </div>\n\n            <p class=\"section-title\">Prompt</p>\n            <div class=\"prompt-area\">\n                <span id=\"prompt-text\">\"{{ $('Image Generator Form').item.json['Prompt to flux'] }}\"</span>\n            </div>\n            \n            <p class=\"section-title\">Detaylar</p>\n            <div class=\"metadata-grid\">\n                <div class=\"meta-item\">\n                    <div class=\"label\">Stil</div>\n                    <div class=\"value\">{{ $('Image Generator Form').item.json.Style }}</div>\n                </div>\n                <div class=\"meta-item\">\n                    <div class=\"label\">Inference </div>\n                    <div class=\"value\">{{ $('Resim Oluştur(together.ai)').item.json.data[0].timings.inference.round(4) }}   </div>\n                </div>\n                <div class=\"meta-item\">\n                    <div class=\"label\">Model</div>\n                    <div class=\"value\">{{ $('Resim Oluştur(together.ai)').item.json.model }}</div>\n                </div>\n                <div class=\"meta-item\">\n                    <div class=\"label\">Gönderim Tarihi</div>\n                    <div class=\"value\">{{ new Date($('Image Generator Form').item.json.submittedAt).toLocaleString('tr-TR') }}</div>\n                </div>\n            </div>\n            \n            <div class=\"actions-group\">\n                <a href=\"{{ $('Resmi Binary Olarak Getir').item.json.data[0].url }}\" download=\"flux-image.png\" class=\"btn btn-primary\">İndir</a>\n                <button class=\"btn btn-secondary\" onclick=\"copyPrompt()\">Prompt'u Kopyala <span id=\"feedback\" class=\"copied-feedback\">✓ Kopyalandı</span></button>\n            </div>\n        </div>\n    </div>\n</div>\n\n<script>\n    function copyPrompt() {\n        const promptText = document.getElementById('prompt-text').innerText;\n        const feedbackElement = document.getElementById('feedback');\n        \n        navigator.clipboard.writeText(promptText).then(() => {\n            feedbackElement.style.display = 'inline';\n            setTimeout(() => {\n                feedbackElement.style.display = 'none';\n            }, 2000);\n        }).catch(err => {\n            alert('Hata: Prompt kopyalanamadı.');\n            console.error('Kopyalama hatası:', err);\n        });\n    }\n</script>\n\n</body>\n</html>\n",
+        "options": {}
+      },
+      "id": "d4dab850-d1cb-4b8e-9ac9-d39d4057089c",
+      "name": "Serve web page Premium Version",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        980,
+        200
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "numberInputs": 7
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        280,
+        420
+      ],
+      "id": "cc9b51e4-1007-4382-9e36-1a3c87b93c5e",
+      "name": "Merge"
+    }
+  ],
+  "connections": {
+    "None": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Route by style": {
+      "main": [
+        [
+          {
+            "node": "Hyper-Surreal Escape",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post-Analog Glitchscape",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Dystopia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Neon Fauvism",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Vivid Pop Explosion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Portrait photography",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "None",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vivid Pop Explosion": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Post-Analog Glitchscape": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Resim Oluştur(together.ai)": {
+      "main": [
+        [
+          {
+            "node": "Resmi Binary Olarak Getir",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond with error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resmi Binary Olarak Getir": {
+      "main": [
+        [
+          {
+            "node": "Serve web page Premium Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Yükle": {
+      "main": [
+        []
+      ]
+    },
+    "Hyper-Surreal Escape": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Neon Fauvism": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "AI Dystopia": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Image Generator Form": {
+      "main": [
+        [
+          {
+            "node": "Route by style",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portrait photography": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Serve web page Premium Version": {
+      "main": [
+        []
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Resim Oluştur(together.ai)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

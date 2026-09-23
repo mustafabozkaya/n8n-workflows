@@ -1,0 +1,508 @@
+{
+  "name": "Workflow Builder",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4"
+        },
+        "options": {
+          "maxTokensToSample": 8000,
+          "thinking": true,
+          "thinkingBudget": 1024
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1400,
+        520
+      ],
+      "id": "677b45d4-cc1a-4adf-ba01-c7274bb2820d",
+      "name": "Claude Opus 4",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "workflowObject": "={{ $json.output[1].text }}",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        320
+      ],
+      "id": "7afb458f-7ade-4cdc-9a55-99b8a58d4357",
+      "name": "n8n API ile Workflow Oluştur",
+      "credentials": {
+        "n8nApi": {
+          "id": "C3KK1q4rbFU4CWZy",
+          "name": "n8n account api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4b8c16e-6788-4c17-b643-94a3f0620860",
+              "name": "Workflow Link",
+              "value": "=https://yaskagroup1.app.n8n.cloud/workflow/{{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        340
+      ],
+      "id": "1c70ce03-9903-4e94-be9d-6fd3fde7fca4",
+      "name": "Workflow Linki Oluştur"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User request: {{ $('If').item.json.builderPayload.added_file_context}}",
+        "options": {
+          "systemMessage": "=# Overview\nYou are an expert AI automation developer specializing in building workflows for n8n. Your job is to translate a human’s natural language request into a fully functional n8n workflow JSON. It should be comprehensive, functional, and importable. You will be provided with context from various web pages and sources to help you build the workflow.\n\n## Output\nYour output should only be the final JSON of the full workflow.\n\nYour output must start with a { and must end with a }.\n- Do not include anything before the { (such as ```json or any markdown formatting).\n- Do not include anything after the } (such as closing code blocks like ``` or explanations).\n\nYour output should be a pure JSON object that begins with { and ends with }, ready to be used as the body of a POST request.\n\nThe JSON must:\n- Be syntactically valid and complete\n- Include a `nodes` array with each node containing all required parameters\n- Include a `connections` object that correctly maps outputs to inputs\n- Start with a `trigger` node if one is required for the use case (e.g., Webhook, Schedule, etc.)\n- Contain descriptive names and parameter values relevant to the user request\n- Avoid placeholders unless no reasonable value can be inferred\n- Contain sticky notes that are explaining what's going on within each step and any credentials or connections that still need to be configured. The colors should vary throughout the workflow.\n\nBefore generating the JSON, analyze the request and the provided context.\n\n## API Submission Requirements\nTo automatically create a workflow using the n8n API, your generated JSON must include the following top-level fields in the final object:\n\n- `name` (string): A clear, descriptive workflow name.\n- `nodes` (array): The complete array of node objects used in the workflow.\n- `connections` (object): A valid map of node-to-node connections.\n- `settings` (object): Workflow-level settings.\n- `staticData` (null or object): Set to `null`.\n\n## n8n documentation :https://docs.n8n.io/glossary/\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        320
+      ],
+      "id": "dd3b5835-f288-422e-a885-a74a1b1dc695",
+      "name": "n8n Builder"
+    },
+    {
+      "parameters": {
+        "content": "# Gelişmiş Workflow Builder\nBu iş akışı, kullanıcı tarafından sağlanan bir istemi ve bir dizi URL'yi alır. URL'lerden veri (metin, HTML, JSON) çeker, bu verileri birleştirerek LLM için bir bağlam oluşturur ve bu bağlamı kullanarak istenen n8n iş akışını JSON formatında üretir. Son olarak, üretilen JSON'u n8n API aracılığıyla yeni bir iş akışı olarak oluşturur.\n\n**Giriş Formatı (Tetikleyiciye gönderilecek JSON):**\n```json\n{\n  \"query\": \"Gmail'e yeni bir e-posta geldiğinde, ekinin içeriğini özetleyip bir Google Sheet'e yazan bir iş akışı oluştur.\",\n  \"sources\": [\n    \"https://docs.n8n.io/nodes/n8n-nodes-base.gmail/\",\n    \"https://api.github.com/users/n8n-io\",\n    \"https://raw.githubusercontent.com/n8n-io/n8n/master/README.md\"\n  ]\n}\n```",
+        "height": 720,
+        "width": 1820,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -40
+      ],
+      "id": "02ffccc6-1c6b-48fd-9692-dcc73fb8c281",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -500,
+        360
+      ],
+      "id": "66bc1124-7fd5-4155-9b0a-28b3ebbecfdd",
+      "name": "Başka bir Workflow ile Tetiklendiğinde"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        740,
+        420
+      ],
+      "id": "48c41073-3f52-451d-b833-53d74d1766ad",
+      "name": "Web Sitesini Tara"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $json.sources }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        420
+      ],
+      "id": "19674835-fa36-4e62-b407-eaf24eacb02f",
+      "name": "Kaynak URL'lerini Ayır"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $items;\nlet aggregatedContent = '';\n\nfor (const item of allItems) {\n  const url = item.json.url;\n  const content = item.json.extractedText;\n\n  aggregatedContent += `--- START OF SOURCE: ${url} ---\\n\\n`;\n  aggregatedContent += content;\n  aggregatedContent += `\\n\\n--- END OF SOURCE: ${url} ---\\n\\n`;\n}\n\nreturn [{ json: { aggregatedContent } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        420
+      ],
+      "id": "245963a4-3781-4961-afb2-d19a85ddbfe3",
+      "name": "Taranan Verileri Birleştir"
+    },
+    {
+      "parameters": {
+        "content": "Tüm kaynaklardan toplanan metinler burada tek bir metin bloğunda birleştirilir. Her kaynağın başına ve sonuna ayırıcı etiketler eklenir.",
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        640,
+        560
+      ],
+      "id": "455ff46f-a248-40bf-b91d-e3c509c15fa2",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Burada, dallanmış veri akışını (taranan içerik) ve ana veri akışını (orijinal kullanıcı isteği) tekrar bir araya getiriyoruz. Böylece LLM her iki bilgiye de sahip olur.",
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        800,
+        180
+      ],
+      "id": "7629886f-d5bf-4fa1-b514-c0c2194dec5b",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "Workflow Linki oluşturulurken, `YOUR_N8N_INSTANCE` kısmını kendi n8n bulut veya sunucu adresinizle değiştirmeyi unutmayın.",
+        "height": 200
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        500
+      ],
+      "id": "f92114a8-7740-4b68-a489-c8b7c28d42f3",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $item;\nconst contentType = item.json.headers['content-type'] || '';\nlet extractedText = '';\n\n// Gelen verinin türünü kontrol et\nif (contentType.includes('application/json')) {\n  // JSON ise, okunabilir metne çevir\n  extractedText = JSON.stringify(item.json.data, null, 2);\n} else if (contentType.includes('text/html')) {\n  // HTML ise, etiketleri temizleyerek metni al\n  // Basit bir regex ile etiketleri kaldırıyoruz.\n  const bodyContent = (item.json.data.match(/<body[^>]*>([\\s\\S.]*)<\\/body>/i) || [])[1] || item.json.data;\n  extractedText = bodyContent.replace(/<[^>]*>/g, ' ').replace(/\\s\\s+/g, ' ').trim();\n} else {\n  // Diğer durumlar (text/plain vb.) için veriyi olduğu gibi al\n  extractedText = item.json.data;\n}\n\n// Orijinal veriyi koruyarak ayıklanan metni ekle\nitem.json.extractedText = extractedText;\n\nreturn item;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        420
+      ],
+      "id": "ed2f2d44-620b-4c98-b8f1-cddf02e476f2",
+      "name": "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)"
+    },
+    {
+      "parameters": {
+        "content": "Bu Düğüm, gelen verinin türünü (JSON, HTML, Metin) algılar ve LLM'in anlayabileceği temiz bir metin formatına dönüştürür. Bu, iş akışını çok daha esnek hale getirir.",
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        240
+      ],
+      "id": "a1a5603d-c8a6-42ee-9ff3-86a664526975",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "121a2af5-0bd4-47fb-a172-a5b0e21dfb3c",
+              "leftValue": "={{ $json.builderPayload.sources.length}}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        360
+      ],
+      "id": "34ad866e-51f8-4b0a-8e17-91a744544725",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.builderPayload.keys().length}}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "de205726-b6b4-42e4-a0e4-c8db69de614f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "90f83ee5-4a2a-44d1-9e34-cf96bd77171e",
+                    "leftValue": "={{ $json.builderPayload.keys().length}}",
+                    "rightValue": "3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "3"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "508f723b-0c62-4771-9c63-a010e4007dc9",
+                    "leftValue": "={{ $json.builderPayload.keys().length}}",
+                    "rightValue": "4",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "4"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -280,
+        360
+      ],
+      "id": "15f8ca18-6672-4ce2-9eb2-2136b60b8dab",
+      "name": "Switch Builder payload length"
+    }
+  ],
+  "connections": {
+    "n8n API ile Workflow Oluştur": {
+      "main": [
+        [
+          {
+            "node": "Workflow Linki Oluştur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Builder": {
+      "main": [
+        [
+          {
+            "node": "n8n API ile Workflow Oluştur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Başka bir Workflow ile Tetiklendiğinde": {
+      "main": [
+        [
+          {
+            "node": "Switch Builder payload length",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Sitesini Tara": {
+      "main": [
+        [
+          {
+            "node": "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynak URL'lerini Ayır": {
+      "main": [
+        [
+          {
+            "node": "Web Sitesini Tara",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Taranan Verileri Birleştir": {
+      "main": [
+        [
+          {
+            "node": "n8n Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Opus 4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "n8n Builder",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)": {
+      "main": [
+        [
+          {
+            "node": "Taranan Verileri Birleştir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Kaynak URL'lerini Ayır",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "n8n Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Linki Oluştur": {
+      "main": [
+        []
+      ]
+    },
+    "Switch Builder payload length": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {
+    "Başka bir Workflow ile Tetiklendiğinde": [
+      {
+        "json": {
+          "builderPayload": {
+            "query": "Eklediğim n8nworkflow incele\nŞimdi ilk ana agent olan workflowu yükledim incele ve chat kısmından text, json dosyası yükleyerek girilen queryi ve dosyaları alıp işleyip sub Workflowa aşagaıdaki formatta developer tools araçılıgıyla gidecek düzenleyelim\n        **Giriş Formatı (Tetikleyiciye gönderilecek JSON):**\n\n        ```json\n\n        {\n          \"query\": \"Gmail'e yeni bir e-posta geldiğinde, ekinin içeriğini özetleyip bir Google Sheet'e yazan bir iş akışı oluştur.\",\n          \"sources\": [\n            \"https://docs.n8n.io/glossary/\" \n          ]\n        }\nEklediğim resimdede görüldüğü üzere developer tools input sadece query gidiyor  bu yüzden ilgili Node ları düzeltelim özellikle n8n agent nodunu developer tools a dogru formatta verdiğim formatta gitmeli sub Workflow Builder a\n\n--- UPLOADED FILE CONTEXT ---\n{\n  \"name\": \"N8n Developer agent with upload Files\",\n  \"nodes\": [\n    {\n      \"parameters\": {\n        \"options\": {\n          \"allowFileUploads\": true\n        }\n      },\n      \"type\": \"@n8n/n8n-nodes-langchain.chatTrigger\",\n      \"typeVersion\": 1.1,\n      \"position\": [\n        40,\n        1080\n      ],\n      \"id\": \"e1ba9a83-941c-493f-babd-e4f3e4fb7372\",\n      \"name\": \"Sohbet Mesajı Alındığında\",\n      \"webhookId\": \"d832bc01-555e-4a24-a8cc-31db8fc1c816\"\n    },\n    {\n      \"parameters\": {\n        \"content\": \"# n8n Developer Agent (Dosya Yüklemeli)\\n\\nBu ajan, kullanıcıdan bir metin sorgusu ve isteğe bağlı olarak bir dosya (JSON/Metin) alır. Yüklenen dosyanın içeriğini ayıklar, bunu kullanıcı sorgusuyla birleştirir ve URL'leri ayıklar. Son olarak, bu zenginleştirilmiş veriyi, asıl iş akışını oluşturacak olan \\\"Workflow Builder\\\" aracına gönderir.\",\n        \"height\": 400,\n        \"width\": 1600,\n        \"color\": 4\n      },\n      \"type\": \"n8n-nodes-base.stickyNote\",\n      \"typeVersion\": 1,\n      \"position\": [\n        180,\n        900\n      ],\n      \"id\": \"f4de9fdf-853a-423b-9152-1821496ee93c\",\n      \"name\": \"Sticky Note1\"\n    },\n    {\n      \"parameters\": {\n        \"promptType\": \"define\",\n        \"text\": \"={{ $json.builderPayload}}\",\n        \"options\": {\n          \"systemMessage\": \"=# Overview\\nYou are a helpful assistant. Your primary job is to take the user's request and call the 'Developer_Tool' to build an n8n workflow. \\n\\n- You will receive a query from the user, which may include text and context from an uploaded file.\\n- Your only task is to call the `Developer_Tool` with the processed inputs you are given.\\n- After the tool runs and returns a workflow link, present this link to the user in a clear, clickable format. For example: \\\"Your workflow is ready! You can view it here: [link]\\\"\\n\\nDo not attempt to answer the user's query yourself. Always use the tool.\"\n        }\n      },\n      \"type\": \"@n8n/n8n-nodes-langchain.agent\",\n      \"typeVersion\": 2,\n      \"position\": [\n        1460,\n        1100\n      ],\n      \"id\": \"a00b4b5b-f287-4c68-b103-63d768d0a99d\",\n      \"name\": \"n8n Developer Agent\"\n    },\n    {\n      \"parameters\": {\n        \"description\": \"Call this tool to build an n8n workflow based on a user's query and any provided context (from files or URLs).\",\n        \"workflowId\": {\n          \"__rl\": true,\n          \"value\": \"2KGOoBSlIbZf84dq\",\n          \"mode\": \"list\",\n          \"cachedResultName\": \"Workflow Builder\"\n        },\n        \"workflowInputs\": {\n          \"mappingMode\": \"expression\",\n          \"value\": \"={{ $json.builderPayload }}\",\n          \"matchingColumns\": [],\n          \"schema\": [],\n          \"attemptToConvertTypes\": false,\n          \"convertFieldsToString\": false\n        }\n      },\n      \"type\": \"@n8n/n8n-nodes-langchain.toolWorkflow\",\n      \"typeVersion\": 2.2,\n      \"position\": [\n        1660,\n        1380\n      ],\n      \"id\": \"36f59fc2-610a-45d5-8df1-4915edffcf52\",\n      \"name\": \"Developer Tool\"\n    },\n    {\n      \"parameters\": {\n        \"content\": \"## Brain\\n\",\n        \"height\": 200,\n        \"width\": 190,\n        \"color\": 6\n      },\n      \"type\": \"n8n-nodes-base.stickyNote\",\n      \"typeVersion\": 1,\n      \"position\": [\n        1200,\n        1320\n      ],\n      \"id\": \"83b57517-dd64-406f-84d7-7f2a45f30542\",\n      \"name\": \"Sticky Note2\"\n    },\n    {\n      \"parameters\": {\n        \"content\": \"## Tool\\n\",\n        \"height\": 200,\n        \"width\": 190,\n        \"color\": 5\n      },\n      \"type\": \"n8n-nodes-base.stickyNote\",\n      \"typeVersion\": 1,\n      \"position\": [\n        1600,\n        1320\n      ],\n      \"id\": \"31594848-d51b-4cb6-a11d-0142e09948fb\",\n      \"name\": \"Sticky Note3\"\n    },\n    {\n      \"parameters\": {},\n      \"type\": \"@n8n/n8n-nodes-langchain.memoryBufferWindow\",\n      \"typeVersion\": 1.3,\n      \"position\": [\n        1460,\n        1380\n      ],\n      \"id\": \"9b30d8fe-bfc7-42c1-a72d-6da5a044b80b\",\n      \"name\": \"Simple Memory\"\n    },\n    {\n      \"parameters\": {\n        \"model\": {\n          \"__rl\": true,\n          \"value\": \"gpt-4.1\",\n          \"mode\": \"list\",\n          \"cachedResultName\": \"gpt-4.1\"\n        },\n        \"options\": {}\n      },\n      \"type\": \"@n8n/n8n-nodes-langchain.lmChatOpenAi\",\n      \"typeVersion\": 1.2,\n      \"position\": [\n        1260,\n        1380\n      ],\n      \"id\": \"386e3740-0f06-4848-bcdf-40635f7d4ee8\",\n      \"name\": \"OpenAI Chat Model\",\n      \"credentials\": {\n        \"openAiApi\": {\n          \"id\": \"klDM6WGm77tTw4BE\",\n          \"name\": \"OpenAi account\"\n        }\n      }\n    },\n    {\n      \"parameters\": {\n        \"content\": \"## Memory \",\n        \"height\": 200,\n        \"width\": 180,\n        \"color\": 2\n      },\n      \"type\": \"n8n-nodes-base.stickyNote\",\n      \"typeVersion\": 1,\n      \"position\": [\n        1400,\n        1320\n      ],\n      \"id\": \"8ea1ee09-cdbf-467b-8934-4eb44ba7761b\",\n      \"name\": \"Sticky Note\"\n    },\n    {\n      \"parameters\": {\n        \"operation\": \"text\",\n        \"binaryPropertyName\": \"data0\",\n        \"options\": {\n          \"keepSource\": \"json\"\n        }\n      },\n      \"type\": \"n8n-nodes-base.extractFromFile\",\n      \"typeVersion\": 1,\n      \"position\": [\n        560,\n        1040\n      ],\n      \"id\": \"59476545-0c1f-4668-89f9-38b289e1b2b0\",\n      \"name\": \"Yüklenen Dosyadan Metni Çıkar\"\n    },\n    {\n      \"parameters\": {\n        \"jsCode\": \"// Gelen veri, IF bloğu sayesinde her zaman tutarlı olacak.\\nconst item = $input.first().json;\\n\\nconst userQuery = item.chatInput;\\nconst fileContext = item.uploaded_file_context;\\n\\nlet finalQueryForBuilder = userQuery;\\n\\n// Eğer dosya içeriği varsa (boş değilse), sorguya ekle.\\nif (fileContext) {\\n  finalQueryForBuilder += `\\\\n\\\\n--- UPLOADED FILE CONTEXT ---\\\\n${fileContext}`;\\n}\\n\\n// Kullanıcı sorgusundaki URL'leri bul ve ayıkla\\nconst urlRegex = /https?:\\\\/\\\\/[^\\\\s]+/g;\\nconst sources = userQuery.match(urlRegex) || [];\\n\\n// Builder'a gönderilecek son yükü oluştur\\nconst builderPayload = {\\n  query: finalQueryForBuilder,\\n  sources: sources\\n};\\n\\n// Hem ajanın kullanması için orijinal sorguyu, hem de araca gönderilecek\\n// işlenmiş veriyi aynı item içinde birleştir.\\nreturn {\\n  ...item,\\n  builderPayload: builderPayload\\n};\"\n      },\n      \"type\": \"n8n-nodes-base.code\",\n      \"typeVersion\": 2,\n      \"position\": [\n        1260,\n        1100\n      ],\n      \"id\": \"a9030940-2cfc-4dac-b083-baf2054168a8\",\n      \"name\": \"Builder İçin Veri Hazırla\"\n    },\n    {\n      \"parameters\": {},\n      \"type\": \"n8n-nodes-base.merge\",\n      \"typeVersion\": 2.1,\n      \"position\": [\n        1060,\n        1100\n      ],\n      \"id\": \"1ddc7ad4-c079-4b47-ab9c-9f9ffa89ca13\",\n      \"name\": \"Sorgu ve Dosya Verisini Birleştir\"\n    },\n    {\n      \"parameters\": {\n        \"conditions\": {\n          \"options\": {\n            \"caseSensitive\": true,\n            \"leftValue\": \"\",\n            \"typeValidation\": \"loose\",\n            \"version\": 2\n          },\n          \"conditions\": [\n            {\n              \"id\": \"346d1087-cf51-405d-b423-721892e43321\",\n              \"leftValue\": \"={{ $json.files}}\",\n              \"rightValue\": \"\",\n              \"operator\": {\n                \"type\": \"boolean\",\n                \"operation\": \"notEmpty\",\n                \"singleValue\": true\n              }\n            },\n            {\n              \"id\": \"468ffd0c-b8c2-4716-9599-632708ad8522\",\n              \"leftValue\": \"={{ $json.files.length}}\",\n              \"rightValue\": 0,\n              \"operator\": {\n                \"type\": \"number\",\n                \"operation\": \"gt\"\n              }\n            }\n          ],\n          \"combinator\": \"and\"\n        },\n        \"looseTypeValidation\": true,\n        \"options\": {}\n      },\n      \"type\": \"n8n-nodes-base.if\",\n      \"typeVersion\": 2.2,\n      \"position\": [\n        280,\n        1080\n      ],\n      \"id\": \"fff30fcc-1cec-417c-8c80-ca3e47f47cf1\",\n      \"name\": \"Dosya Yüklendi mi?\"\n    },\n    {\n      \"parameters\": {\n        \"assignments\": {\n          \"assignments\": [\n            {\n              \"id\": \"b7dccfcc-27fe-433d-a9a1-db927700424d\",\n              \"name\": \"uploaded_file_context\",\n              \"value\": \"={{ $json.data }}\",\n              \"type\": \"string\"\n            }\n          ]\n        },\n        \"includeOtherFields\": true,\n        \"options\": {}\n      },\n      \"type\": \"n8n-nodes-base.set\",\n      \"typeVersion\": 3.4,\n      \"position\": [\n        780,\n        1040\n      ],\n      \"id\": \"506f9fcd-0855-4deb-8d4a-1d60936ae95c\",\n      \"name\": \"Sorguya Dosya Bağlamı Ekle\"\n    },\n    {\n      \"parameters\": {\n        \"assignments\": {\n          \"assignments\": [\n            {\n              \"id\": \"b7dccfcc-27fe-433d-a9a1-db927700424d\",\n              \"name\": \"uploaded_file_context\",\n              \"value\": \"\",\n              \"type\": \"string\"\n            }\n          ]\n        },\n        \"includeOtherFields\": true,\n        \"options\": {}\n      },\n      \"type\": \"n8n-nodes-base.set\",\n      \"typeVersion\": 3.4,\n      \"position\": [\n        680,\n        1160\n      ],\n      \"id\": \"66f5997c-1f57-43ad-a0f5-8417fcb5febd\",\n      \"name\": \"Boş Dosya Bağlamı Ekle\"\n    }\n  ],\n  \"pinData\": {},\n  \"connections\": {\n    \"Sohbet Mesajı Alındığında\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Dosya Yüklendi mi?\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Developer Tool\": {\n      \"ai_tool\": [\n        [\n          {\n            \"node\": \"n8n Developer Agent\",\n            \"type\": \"ai_tool\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Simple Memory\": {\n      \"ai_memory\": [\n        [\n          {\n            \"node\": \"n8n Developer Agent\",\n            \"type\": \"ai_memory\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"OpenAI Chat Model\": {\n      \"ai_languageModel\": [\n        [\n          {\n            \"node\": \"n8n Developer Agent\",\n            \"type\": \"ai_languageModel\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Yüklenen Dosyadan Metni Çıkar\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Sorguya Dosya Bağlamı Ekle\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Builder İçin Veri Hazırla\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"n8n Developer Agent\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Sorgu ve Dosya Verisini Birleştir\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Builder İçin Veri Hazırla\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Dosya Yüklendi mi?\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Yüklenen Dosyadan Metni Çıkar\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ],\n        [\n          {\n            \"node\": \"Boş Dosya Bağlamı Ekle\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Sorguya Dosya Bağlamı Ekle\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Sorgu ve Dosya Verisini Birleştir\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Boş Dosya Bağlamı Ekle\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Sorgu ve Dosya Verisini Birleştir\",\n            \"type\": \"main\",\n            \"index\": 1\n          }\n        ]\n      ]\n    }\n  },\n  \"active\": false,\n  \"settings\": {\n    \"executionOrder\": \"v1\"\n  },\n  \"versionId\": \"860505da-22e8-4f44-89bf-8210db1152bd\",\n  \"meta\": {\n    \"templateCredsSetupCompleted\": true,\n    \"instanceId\": \"300769c8bd1743a42860d7501dd2abe6d1cfb5c2a9f8d2d470be0f9c0074d6da\"\n  },\n  \"id\": \"ThQkMvjTESz5YEN6\",\n  \"tags\": [\n    {\n      \"createdAt\": \"2025-05-21T06:07:39.581Z\",\n      \"updatedAt\": \"2025-05-21T06:07:39.581Z\",\n      \"id\": \"0SVDAi6wQRAusbZ5\",\n      \"name\": \"transcript\"\n    },\n    {\n      \"createdAt\": \"2025-05-21T06:06:53.100Z\",\n      \"updatedAt\": \"2025-05-21T06:06:53.100Z\",\n      \"id\": \"2erF9s6iBw9cks4p\",\n      \"name\": \"stt\"\n    },\n    {\n      \"createdAt\": \"2025-05-21T06:07:12.947Z\",\n      \"updatedAt\": \"2025-05-21T06:07:12.947Z\",\n      \"id\": \"BWS4kNp2MDOB3W0W\",\n      \"name\": \"webhook\"\n    },\n    {\n      \"createdAt\": \"2025-05-21T06:07:30.621Z\",\n      \"updatedAt\": \"2025-05-21T06:07:30.621Z\",\n      \"id\": \"Lb5ZQrxiUuyBaphN\",\n      \"name\": \"speech\"\n    },\n    {\n      \"createdAt\": \"2025-05-21T06:07:04.375Z\",\n      \"updatedAt\": \"2025-05-21T06:07:04.375Z\",\n      \"id\": \"kGAPKbpS4uG5WWyd\",\n      \"name\": \"postgres\"\n    }\n  ]\n}",
+            "sources": [
+              "https://docs.n8n.io/glossary/\""
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

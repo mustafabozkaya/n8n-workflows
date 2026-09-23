@@ -1,0 +1,368 @@
+{
+  "name": "📰 Daily AI Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://www.theverge.com/rss/index.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedReadTool",
+      "typeVersion": 1.2,
+      "position": [
+        1168,
+        1568
+      ],
+      "id": "303e9b4e-cc4e-4d8a-8ede-7550f070d212",
+      "name": "Get Tech News"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Reads the news",
+        "url": "=https://feeds.bbci.co.uk/news/world/rss.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedReadTool",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        1568
+      ],
+      "id": "4090a753-f131-40b1-87c3-cf74d5a7e325",
+      "name": "Get World News"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        816,
+        1440
+      ],
+      "id": "651543b5-0213-433f-8760-57d62b8d6d64",
+      "name": "Run every day at 7AM",
+      "notesInFlow": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85b5c530-2c13-4424-ab83-05979bc879a5",
+              "name": "output",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1504,
+        1344
+      ],
+      "id": "99f7bb9e-f8c0-43ca-a9a8-a76634ac9611",
+      "name": "Output",
+      "notesInFlow": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        816,
+        1248
+      ],
+      "id": "a0390291-6794-4673-9a6a-5c3d3a5d9e4b",
+      "name": "Click ‘Execute workflow’ to run"
+    },
+    {
+      "parameters": {
+        "content": "## ⚡ Start here:",
+        "height": 224,
+        "width": 224,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        752,
+        1200
+      ],
+      "id": "fac5929f-e065-4474-96b1-7bcc06834238",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        1568
+      ],
+      "id": "b16482e8-0d48-4426-aa93-c3fee11dd3cd",
+      "name": "OpenAI Model",
+      "notesInFlow": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "khWgJW5m97sRipmS",
+          "name": "n8n free OpenAI API credits"
+        }
+      },
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "content": "@[youtube](cMyOkQ4N-5M)\n",
+        "height": 592,
+        "width": 1366,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        896,
+        1680
+      ],
+      "id": "ec65e69e-77fa-4912-a4af-49e0a248e2c8",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Today is {{ $today }}. Please summarize the latest news from the last 24 hours.",
+        "options": {
+          "systemMessage": "You are a news summarization assistant. Your task is to read news from RSS feeds and create concise, informative summaries. Organize the summaries under clear headings: \"World news:\" and \"Tech news:\". Skip any personal comments or opinions - just provide factual summaries."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1088,
+        1344
+      ],
+      "id": "084d56aa-d157-4964-9073-b36d9d9589c5",
+      "name": "AI Summary Agent",
+      "notesInFlow": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "content": "### Double click here to see the results:",
+        "height": 240,
+        "width": 192,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        1264
+      ],
+      "id": "a4b7a69a-0db8-4b9b-a81d-fd83378043a3",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "### 📰 Daily AI Summary\n\n\nThis workflow gets the latest news and asks AI to summarize it for you.\n\n⭐ Bonus: Send the summary via email by connecting your Gmail account\n\n▶ Watch the video to get started ",
+        "height": 272,
+        "width": 224,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        752,
+        928
+      ],
+      "id": "74d80857-5e63-47a8-8e86-8ecd10fd5f9e",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "chatId": "1225760995",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "id": "c41ad523-faed-453c-ad95-bdae253cacbc",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1952,
+        1152
+      ],
+      "webhookId": "ac2dafa1-56d1-4109-8297-7cc222126c91",
+      "credentials": {
+        "telegramApi": {
+          "id": "zbDgBXffzDs1KCcq",
+          "name": "Telegram account dailynews"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "recipientPhoneNumber": "<__PLACEHOLDER_VALUE__Recipient WhatsApp Phone Number__>",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "0d7b48f7-bdda-44da-bea6-28b5d4fa581f",
+      "name": "Send to WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1728,
+        1536
+      ],
+      "webhookId": "56ab36fc-7d13-43e2-a55c-e7b32d6b24e8"
+    },
+    {
+      "parameters": {
+        "subject": "Your news daily summary",
+        "emailType": "text",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1728,
+        1344
+      ],
+      "id": "c90b1a06-acac-493c-bfb6-9b7952452616",
+      "name": "Send summary by email",
+      "webhookId": "093b04f1-5e78-4926-9863-1b100d6f2ead",
+      "notesInFlow": true,
+      "notes": "Double-click to open"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the output text from the previous node\nconst outputText = $input.first().json.output;\n\n// Maximum chunk size for Telegram messages\nconst MAX_CHUNK_SIZE = 4000;\n\n// Split the text into chunks\nconst chunks = [];\nlet currentPosition = 0;\n\nwhile (currentPosition < outputText.length) {\n  // Get the next chunk\n  let chunk = outputText.substring(currentPosition, currentPosition + MAX_CHUNK_SIZE);\n  \n  // If this isn't the last chunk and doesn't end at the end of the text,\n  // try to break at a newline or space to avoid cutting words\n  if (currentPosition + MAX_CHUNK_SIZE < outputText.length) {\n    const lastNewline = chunk.lastIndexOf('\\n');\n    const lastSpace = chunk.lastIndexOf(' ');\n    \n    // Prefer breaking at newline, then space\n    if (lastNewline > MAX_CHUNK_SIZE * 0.8) {\n      chunk = chunk.substring(0, lastNewline + 1);\n    } else if (lastSpace > MAX_CHUNK_SIZE * 0.8) {\n      chunk = chunk.substring(0, lastSpace + 1);\n    }\n  }\n  \n  chunks.push({ text: chunk.trim() });\n  currentPosition += chunk.length;\n}\n\n// Return array of items, one for each chunk\nreturn chunks;"
+      },
+      "id": "9ec24dce-5bfa-4ddb-8084-7983b1c8af89",
+      "name": "Split Message for Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        1152
+      ]
+    }
+  ],
+  "connections": {
+    "Get Tech News": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get World News": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run every day at 7AM": {
+      "main": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Click ‘Execute workflow’ to run": {
+      "main": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Summary Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Summary Agent": {
+      "main": [
+        [
+          {
+            "node": "Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output": {
+      "main": [
+        [
+          {
+            "node": "Split Message for Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Message for Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateId": "ready-to-run-ai-workflow"
+  }
+}

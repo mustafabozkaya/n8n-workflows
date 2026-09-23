@@ -1,0 +1,896 @@
+{
+  "name": "Google Maps Email Scrapinng",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        1260
+      ],
+      "id": "769b6578-e43a-40a7-95d4-2210ecb1195f",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Google Maps search assistant designed to create highly specific and localized search queries.\n\nYou will be provided with a business type and a city name. Your task is to generate a comprehensive list of search queries by incorporating the subregions and neighborhoods of the given city.\n\nRequirements:\nUse the format: <business type> + in + <subregion> for each query.\nInclude all relevant subregions or neighborhoods of the specified city.\nEnsure proper capitalization and spelling in all search queries.\nAim to cover every subregion within the city to maximize search accuracy and reach.\n\nExample:\nBusiness: Plumbers\nCity: Los Angeles\n\nOutput:\nplumbers+in+crestview  \nplumbers+in+downtown  \nplumbers+in+brentwood  \nplumbers+in+hollywood  \nplumbers+in+echo+park  \n... and so on, until all subregions are listed.  \n\nYour goal is to provide a complete and exhaustive list for any city and business type provided.\nPlease create search queries in {{ $json.City }} city and {{ $json.Business }} business.\n\n**IMPORTANT**\n\nAlways include + signs instead of spaces in the seach queries.\nOutput in a valid JSON format, for example:\n\n{\n\"locations\": [\"plumbers+in+crestview\",\"plumbers+in+downtown\"]\n}",
+        "hasOutputParser": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        1140,
+        1080
+      ],
+      "id": "90d10b97-2214-453b-ad49-06b40cfa8cf1",
+      "name": "Basic LLM Chain",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"output\": [\"plumbers+in+chinatown\",\"plumbers+in+westlake\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1340,
+        1320
+      ],
+      "id": "85ad6415-d45b-44bc-9ced-ee06f6b53e98",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        1320
+      ],
+      "id": "c84baef5-59a3-49ad-a273-034f9358b0a4",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.locations",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        960,
+        1480
+      ],
+      "id": "f769849f-574a-4647-9845-57346f74b632",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5222727f-131b-418e-826d-4f9e5166703d",
+              "name": "output",
+              "value": "={{ $json['output.locations'] }}",
+              "type": "string"
+            },
+            {
+              "id": "3840b137-beca-4463-b0e5-676bb162115a",
+              "name": "location",
+              "value": "={{ $('Edit Fields1').item.json.City }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1140,
+        1480
+      ],
+      "id": "52a42fe4-ef78-4ef5-931e-b34b4853e7b7",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1620,
+        1100
+      ],
+      "id": "9a12ec53-f596-4f31-9e7b-560d6184020a",
+      "name": "Loop Over Items",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "780c4ae0-34ed-49eb-90f5-363a07dc1e0b",
+              "name": "email",
+              "value": "={{ $json.emails }}",
+              "type": "string"
+            },
+            {
+              "id": "bb6c6ef9-70ba-4cac-ab0d-8bd3c2432b02",
+              "name": "search term",
+              "value": "={{ $('Loop Over Items').item.json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "e46a2626-34c0-4a0b-b5aa-e9997016d890",
+              "name": "location",
+              "value": "={{ $('Loop Over Items').item.json.location }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2560,
+        1300
+      ],
+      "id": "220e4379-34d7-4090-80c6-9492f700d079",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "maxItems": 5
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        1480
+      ],
+      "id": "d7925a95-3a71-4f14-9e27-034a46522b68",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2460,
+        1480
+      ],
+      "id": "494bd087-80e7-432b-92b0-a1d2a780b243",
+      "name": "Wait",
+      "webhookId": "19cc6ed4-4fe7-485b-b879-c679e4b3374d"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2260,
+        1080
+      ],
+      "id": "64eacee0-9ca0-4b06-a08f-1d325002fd84",
+      "name": "Wait1",
+      "webhookId": "0fe34756-6e43-4603-8891-5747a9a6500a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json.data\nconst regex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.(?!jpeg|jpg|png|gif|webp|svg)[a-zA-Z]{2,}/g\nconst emails = input.match(regex)\nreturn {json: {emails:emails}}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        1480
+      ],
+      "id": "4fcc486c-7a7f-46d4-9beb-bbd02f484048",
+      "name": "Extract Emails",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json.data\nconst regex = /https?:\\/\\/[^\\/\\s\"'>]+/g\nconst websites = input.match(regex)\nreturn websites.map(website => ({json:{website}}))"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1300
+      ],
+      "id": "da56adb9-d1e4-4493-9a37-678e50201da9",
+      "name": "Extract URLs"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        1480
+      ],
+      "id": "1f42bf4a-4c56-4cbf-b41e-939a8f22a7d6",
+      "name": "Scrape Site",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a6786c58-424a-409a-b87f-8a7592cb7944",
+              "leftValue": "={{ $json.emails }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2460,
+        1080
+      ],
+      "id": "5c05667b-7e60-46f4-b050-42ace802a1c2",
+      "name": "Filter Out Empties"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bf0a5053-9660-457c-9581-964793bb6d7d",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "schema",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "9110b9e0-12aa-45cc-bde0-9eda8c10970e",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "google",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "fb9b6ed6-96a5-4560-ab10-b8a4b9a61a2b",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "gg",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "10500c0b-cdbd-4816-aba3-df60d69845dc",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "gstatic",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1880,
+        1280
+      ],
+      "id": "bda9b62b-47a0-4c69-b1fc-aebcdf9c6ea0",
+      "name": "Filter Google URLs"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        2380,
+        1300
+      ],
+      "id": "6968ef60-e78b-434e-acd1-8ca28580792c",
+      "name": "Remove Duplicates (2)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        1520
+      ],
+      "id": "6d282306-9431-4913-9519-4925ead38cb9",
+      "name": "Remove Duplicates2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2140,
+        1300
+      ],
+      "id": "957a5c17-2889-47d9-b148-230871315ea1",
+      "name": "Loop Over Items3"
+    },
+    {
+      "parameters": {
+        "maxItems": 20
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        1520
+      ],
+      "id": "15da5a3b-2b35-4a96-9807-aa0c23e96005",
+      "name": "Limit1"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "emails",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        1080
+      ],
+      "id": "baa2e2fb-d9b3-4def-9749-d6c676b4393b",
+      "name": "Split Out2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5dd87647-6e4f-4a51-98d6-10d4965b5b23",
+              "name": "City",
+              "value": "={{ $json.splitName[3] || $json.splitName[2] }}",
+              "type": "string"
+            },
+            {
+              "id": "d85aeff3-6a3d-479c-b3a0-01c7d7c33b37",
+              "name": "Business",
+              "value": "={{ $json.splitName[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        940,
+        1120
+      ],
+      "id": "7b870eb8-e8e7-4d5d-b890-71ace8e3bb8c",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "content": "# Step-1 \n## Generating targeted search queries covering every neighborhood in selected city.",
+        "height": 660,
+        "width": 720
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        100,
+        940
+      ],
+      "typeVersion": 1,
+      "id": "b442f124-fe68-4263-b705-1547249d430f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.google.com/maps/search/{{ $json.output }}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        1100
+      ],
+      "id": "1379dd93-d738-4ea9-a879-a2909b685ef1",
+      "name": "Scrape Google Maps"
+    },
+    {
+      "parameters": {
+        "content": "# Step-2\n## Visit Google Maps & scrape",
+        "height": 660,
+        "width": 440,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        900,
+        940
+      ],
+      "typeVersion": 1,
+      "id": "fac89b25-248d-48ba-9c3f-2ea41d3161d3",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# Step-3\n## Visit website and scrape unique emails",
+        "height": 660,
+        "width": 720,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1420,
+        940
+      ],
+      "typeVersion": 1,
+      "id": "dcc40550-3de6-4408-9da3-4dee7edee987",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "keywords",
+          "mode": "list",
+          "cachedResultName": "keywords"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -40,
+        1260
+      ],
+      "id": "bb3fd488-ce7b-48c1-b0cb-dc482adbcaf5",
+      "name": "MySQL",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "yjCNJMiF5rt3jQUr",
+          "name": "MySQL n8n mapsabpidb"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        280,
+        1260
+      ],
+      "id": "301e5bd7-a32c-43b2-8078-40ae4325d6ea",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        2780,
+        1660
+      ],
+      "id": "3243193a-f75c-4863-abf4-86866f46ee4b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const name = $input.first().json.name;\nconst cleanedName = name.replace(/[.,\\/#!$%\\^&\\*;:{}=\\-_`~()]/g, \"\").trim();\nconst splitName = cleanedName.split(\" \");\n\nreturn { splitName };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1220
+      ],
+      "id": "69e81b36-2b29-4915-8c44-b2d2deafd1c1",
+      "name": "Code"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scrape Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Extract Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Filter Out Empties",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Emails": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract URLs": {
+      "main": [
+        [
+          {
+            "node": "Filter Google URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Site": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Out Empties": {
+      "main": [
+        [
+          {
+            "node": "Split Out2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Google URLs": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates (2)": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates2": {
+      "main": [
+        [
+          {
+            "node": "Limit1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items3": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scrape Site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out2": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates (2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Google Maps": {
+      "main": [
+        [
+          {
+            "node": "Extract URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

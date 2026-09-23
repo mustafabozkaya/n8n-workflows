@@ -1,0 +1,270 @@
+{
+  "name": "Google Sheets to Meta Business Daily Data Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "9e9771e1-f9a0-46f8-a720-9105c7870005",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "sheetsDocumentId",
+              "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID__>",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "customerDataSheetName",
+              "value": "<__PLACEHOLDER_VALUE__Sheet name with phone and email data__>",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "metaAdAccountId",
+              "value": "<__PLACEHOLDER_VALUE__Meta Ad Account ID (act_xxxxx)__>",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "metaAccessToken",
+              "value": "<__PLACEHOLDER_VALUE__Meta Access Token__>",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "audienceName",
+              "value": "<__PLACEHOLDER_VALUE__Custom Audience Name__>",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "22ee50d6-e1ab-44cf-9d41-25f7798b155e",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Workflow Configuration').first().json.sheetsDocumentId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Workflow Configuration').first().json.customerDataSheetName }}"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically"
+            }
+          }
+        }
+      },
+      "id": "0ec9242d-0a2e-4f0b-8c59-fa6046f96e41",
+      "name": "Read Business List from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\n// Function to normalize and hash data\nfunction hashData(data, type) {\n  if (!data) return null;\n  \n  let normalized;\n  \n  if (type === 'email') {\n    // Normalize email: lowercase and trim\n    normalized = data.toString().toLowerCase().trim();\n  } else if (type === 'phone') {\n    // Normalize phone: remove spaces, dashes, parentheses, and other non-numeric characters\n    normalized = data.toString().replace(/[\\s\\-\\(\\)\\+]/g, '');\n  } else {\n    normalized = data.toString().trim();\n  }\n  \n  // Hash with SHA256\n  return crypto.createHash('sha256').update(normalized).digest('hex');\n}\n\n// Process all items\nconst outputItems = [];\n\nfor (const item of $input.all()) {\n  const hashedItem = {\n    ...item.json\n  };\n  \n  // Hash email if present\n  if (item.json.email) {\n    hashedItem.hashedEmail = hashData(item.json.email, 'email');\n  }\n  \n  // Hash phone if present\n  if (item.json.phone) {\n    hashedItem.hashedPhone = hashData(item.json.phone, 'phone');\n  }\n  \n  outputItems.push(hashedItem);\n}\n\nreturn outputItems;"
+      },
+      "id": "92ffa243-f8cb-4f79-9991-69e7b977bfcd",
+      "name": "Hash Customer Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $('Workflow Configuration').first().json.metaAdAccountId }}/customaudiences",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('Workflow Configuration').first().json.metaAccessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": {{ $('Workflow Configuration').first().json.audienceName }},\n  \"subtype\": \"CUSTOM\",\n  \"customer_file_source\": \"USER_PROVIDED_ONLY\"\n}",
+        "options": {}
+      },
+      "id": "52c162e3-9ed7-4da0-9a39-2d3371fe7aa2",
+      "name": "Create Custom Audience",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.id }}/users",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('Workflow Configuration').first().json.metaAccessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"payload\": $('Hash Customer Data').item.json } }}",
+        "options": {}
+      },
+      "id": "ccc12d95-befc-4483-a907-67428b297f09",
+      "name": "Add Users to Audience",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Create Custom Audience').first().json.id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('Workflow Configuration').first().json.metaAccessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"targeting\": {\n    \"geo_locations\": {\n      \"countries\": [\"DE\"]\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "5b9cfd71-40c7-40c7-9a3f-1309e522bb70",
+      "name": "Set Audience Location to Germany",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Read Business List from Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Business List from Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Hash Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hash Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Create Custom Audience",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Custom Audience": {
+      "main": [
+        [
+          {
+            "node": "Add Users to Audience",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Users to Audience": {
+      "main": [
+        [
+          {
+            "node": "Set Audience Location to Germany",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

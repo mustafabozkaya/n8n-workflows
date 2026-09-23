@@ -1,0 +1,444 @@
+{
+  "name": "Slack Call Center Analysis2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-analysis",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        32,
+        48
+      ],
+      "id": "ed166ef8-feab-45dd-a5f1-7b35faffd26e",
+      "name": "Slack Webhook Trigger",
+      "webhookId": "call-analysis-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE_WITH_YOUR_WEBHOOKP",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=🎧 *Call Analysis Complete*\n\n*Agent:* {{ $json.agent_name }}\n*Client:* {{ $json.client_name }}\n*Topic:* {{ $json.call_topic }}\n*Sentiment:* {{ $json.client_sentiment }}\n*Department:* {{ $json.department_tag }}\n\n*📝 Summary:*\n{{ $json.summary }}\n\n*✅ Action Items:*\n{{ $json.action_items_formatted }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2352,
+        32
+      ],
+      "id": "1e2811b9-ca16-4921-80b9-02957225c0dd",
+      "name": "Send Analysis to Slack"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/files.get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "C01XXXXXXXX"
+            },
+            {
+              "name": "count",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        32
+      ],
+      "id": "a0804bb0-0794-4fd1-adf4-31db2b0be539",
+      "name": "Get Slack Files"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-audio-files",
+              "leftValue": "={{ $json.files }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        32
+      ],
+      "id": "13f0f85a-7851-4d63-b448-84aad8d8a5ee",
+      "name": "Has Audio Files?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Slack file response and filter audio files\nconst files = $input.first().json.files;\n\nif (!files || files.length === 0) {\n  return [{ json: { audioFiles: [] } }];\n}\n\nconst audioFiles = files.filter(file => {\n  const mimeType = file.mimetype || '';\n  return mimeType.includes('audio') || \n         mimeType.includes('octet-stream') ||\n         file.name?.toLowerCase().endsWith('.wav') ||\n         file.name?.toLowerCase().endsWith('.mp3') ||\n         file.name?.toLowerCase().endsWith('.m4a') ||\n         file.name?.toLowerCase().endsWith('.ogg');\n});\n\nif (audioFiles.length > 0) {\n  const file = audioFiles[0];\n  return [{\n    json: {\n      fileId: file.id,\n      filename: file.name,\n      urlPrivate: file.url_private,\n      mimeType: file.mimetype,\n      timestamp: file.created,\n      user: file.user\n    }\n  }];\n}\n\nreturn [{ json: { audioFiles: [] } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        32
+      ],
+      "id": "8bfb4fe7-f122-4f9e-bb49-868152897e4c",
+      "name": "Filter Audio Files"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.urlPrivate }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer xoxb-your-token"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        32
+      ],
+      "id": "2a46d30b-14ec-45f6-9f73-1e8669f6c60b",
+      "name": "Download Audio from Slack"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "sk-your-elevenlabs-key"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model_id",
+              "value": "scribe_v1"
+            },
+            {
+              "name": "diarize",
+              "value": "true"
+            },
+            {
+              "name": "num_speakers",
+              "value": "2"
+            },
+            {
+              "name": "tag_audio_events",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1232,
+        32
+      ],
+      "id": "c8f4ad5f-7f5e-43cf-8c7a-648f744366c1",
+      "name": "ElevenLabs STT",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert ElevenLabs word-level output to conversational transcript\nconst words = $json.words;\n\nif (!words || words.length === 0) {\n  return [{\n    json: {\n      formattedTranscript: \"\",\n      error: \"No transcription data received\"\n    }\n  }];\n}\n\nconst sortedWords = words.sort((a, b) => a.start - b.start);\nlet transcript = \"\";\nlet currentSpeaker = null;\n\nfor (const word of sortedWords) {\n  const speakerId = word.speaker_id || 'unknown';\n  \n  if (currentSpeaker !== speakerId) {\n    if (transcript !== \"\") transcript += \"\\n\";\n    const formattedSpeaker = `Speaker ${speakerId.split('_')[1] || speakerId}`;\n    transcript += `${formattedSpeaker}: ${word.text}`;\n    currentSpeaker = speakerId;\n  } else {\n    transcript += ` ${word.text}`;\n  }\n}\n\nreturn [{\n  json: {\n    formattedTranscript: transcript,\n    wordCount: sortedWords.length,\n    speakers: [...new Set(words.map(w => w.speaker_id))].length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        32
+      ],
+      "id": "d1ed863d-1b58-426d-8de8-14fb1c9d02bb",
+      "name": "Format Transcript"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        32
+      ],
+      "id": "567de12e-d1fe-4c47-9dc9-c6543a5feb64",
+      "name": "Google Gemini"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1904,
+        32
+      ],
+      "id": "99ee371d-5ef2-4a3f-a295-d7cb235e69b9",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this call transcript:\n\n{{ $json.formattedTranscript }}\n\nIdentify speaker names, summarize the conversation, determine client sentiment, classify the topic and department, and list action items."
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        1744,
+        -240
+      ],
+      "id": "4626fae9-d251-48aa-9075-7deb3f513181",
+      "name": "Call Analysis Chain",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format analysis results for Slack\nconst item = $input.first().json;\nconst output = item.output || item;\n\nconst sentimentEmoji = {\n  'Positive': '😊',\n  'Negative': '😞',\n  'Neutral': '😐'\n};\n\nconst actionItems = output.action_items || [];\nconst actionItemsFormatted = actionItems.length > 0 \n  ? actionItems.map(item => `• ${item}`).join('\\n')\n  : '• No action items identified';\n\nreturn [{\n  json: {\n    ...output,\n    sentiment_emoji: sentimentEmoji[output.client_sentiment] || '',\n    action_items_formatted: actionItemsFormatted,\n    filename: item.filename || 'Unknown',\n    duration: item.duration || 'N/A'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        32
+      ],
+      "id": "e7e9e589-01be-4caa-b2a1-d304f44a0e6c",
+      "name": "Format Slack Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Send error message to Slack via webhook\nconst error = $json.error || 'Unknown error occurred';\n\nreturn [{\n  json: {\n    text: `❌ *Call Analysis Failed*\n\nAn error occurred while analyzing the call recording:\n\n\\`\\`\\`${error}\\`\\`\\`\n\nPlease try again or contact support.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        224
+      ],
+      "id": "68c6464a-17db-4c4d-af12-928f8e3f73d4",
+      "name": "Handle Errors"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE_WITH_YOUR_WEBHOOKP",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=❌ *Call Analysis Failed*\n\nAn error occurred while processing the audio file:\n\n```{{ $json.error }}```\n\nPlease check the file format and try again."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        224
+      ],
+      "id": "fa37c253-fe0e-4b51-bb92-10edead28eee",
+      "name": "Send Error to Slack"
+    },
+    {
+      "parameters": {
+        "content": "## Slack Call Analysis Workflow\n\nThis workflow analyzes call recordings shared in Slack:\n\n1. **Trigger**: Webhook receives audio file URL from Slack\n2. **Download**: Fetches the audio file\n3. **Transcribe**: ElevenLabs STT with speaker diarization\n4. **Analyze**: Gemini analyzes sentiment, topic, summary\n5. **Report**: Sends results back via Slack webhook\n\n**Setup:**\n1. Create Slack Incoming Webhook URL\n2. Replace YOUR_SLACK_WEBHOOK_URL in nodes\n3. Configure Slack to POST to n8n webhook",
+        "height": 400,
+        "width": 600,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -336
+      ],
+      "id": "6849b0fa-8011-4ed4-aaaa-e99c26eab465",
+      "name": "Workflow Overview"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Slack Files": {
+      "main": [
+        [
+          {
+            "node": "Has Audio Files?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Audio Files?": {
+      "main": [
+        [
+          {
+            "node": "Filter Audio Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Audio Files": {
+      "main": [
+        [
+          {
+            "node": "Download Audio from Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio from Slack": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs STT": {
+      "main": [
+        [
+          {
+            "node": "Format Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Transcript": {
+      "main": [
+        [
+          {
+            "node": "Call Analysis Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Call Analysis Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Analysis Chain": {
+      "main": [
+        [
+          {
+            "node": "Format Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Send Analysis to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Errors": {
+      "main": [
+        [
+          {
+            "node": "Send Error to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ab97252a-684b-4d79-94d9-09e25ebd603f",
+  "meta": {
+    "instanceId": "c098c709e16b3b24d6c4818af649ab067f84dea2f1d5f494e7e74ae5b54c8cb9"
+  },
+  "id": "D6T_B6lxW5wix1VPNx843",
+  "tags": []
+}

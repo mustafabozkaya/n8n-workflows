@@ -1,0 +1,529 @@
+{
+  "name": "AI Video Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json[\"video image propmt\"] }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -864,
+        144
+      ],
+      "id": "440c65c6-e167-4248-bb9f-749974b2ff2a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/veo-3.1-generate-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        368
+      ],
+      "id": "052a0c74-fb0e-4e10-a5d2-2e8c17f36def",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "iRn8BHyrqZZUAM0a",
+          "name": "Google Gemini Api account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"prompts\": [\"Los Angeles\", \"San Francisco\", \"San Diego\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -688,
+        384
+      ],
+      "id": "832c4532-6095-45a1-b906-91d73a9b1279",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        144
+      ],
+      "id": "a8cbbdac-3fa4-4053-bfae-9f27e2b3cab9",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.prompts",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        144
+      ],
+      "id": "f373196a-9766-44ed-bf71-9c370275e896",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=YOUR_API_KEY",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"contents\": [{\n      \"parts\": [\n        {\"text\": \"Hi, can you create a 3d rendered image of {{ $json[\"output.prompts\"] }} it should be very relastic and modern and it size should be veritcal for example width:1080 - height: 1920\"}\n      ]\n    }],\n    \"generationConfig\":{\"responseModalities\":[\"Text\",\"Image\"]}\n  }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        160
+      ],
+      "id": "f8755472-7fa6-4487-87d3-08d68bd4fbd1",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "candidates[0].content.parts[0].inlineData.data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        432
+      ],
+      "id": "efd32ed9-3e70-489f-990a-9d8fe3ca6f5c",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Loop Over Items').item.json[\"output.prompts\"].replaceAll(\" \",\"\") }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1jHAT3T8bPGmy1E3qgAOJO39ElOjM7z6-",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1jHAT3T8bPGmy1E3qgAOJO39ElOjM7z6-"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        432
+      ],
+      "id": "0fb1c0f2-8714-4d7d-adb0-9ae81a9950ea",
+      "name": "Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "22NRzjGSWA9ke1Ct",
+          "name": "Google Drive info mustafa"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  result.push({\n    id: `img_${i}`,\n    type: \"image\",\n    src: $input.all()[i].json.imageUrl.slice(0,-5),\n    width: 1080,\n    height: 1920,\n    x: 0,\n    y: 0,\n    duration: 3,\n    pan: \"left\",\n    \"fade-in\": 1,\n    start: 3 + i * 3\n  });\n\n  result.push({\n    id: `txt_${i}`,\n    type: \"text\",\n    style: \"002\",\n    settings: {\n      \"font-size\": \"12vw\",\n      \"font-family\": \"Arial\"\n    },\n    start: 3 + i * 3,\n    duration: 3,\n    \"fade-in\": 1,\n    x: 3,\n    y: 757,\n    text: `${i + 1}`\n  });\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        0
+      ],
+      "id": "62c4fe14-fefb-449d-a0e6-9be8433afeac",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "df69e4bd-c474-4903-be78-7981f299b8bf",
+              "name": "imageUrl",
+              "value": "={{ $json.thumbnailLink }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5baf0921-8c5b-4dbb-b7ce-59f0e550c782",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "amount": 500
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        0
+      ],
+      "id": "f84adbb5-5e7b-4299-a330-7c40f70cccb2",
+      "name": "Wait",
+      "webhookId": "1b35a2dd-ed62-4574-8ac3-a66cc068e13b"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('On form submission').first().json['video caption'] }}",
+        "regionCode": "TR",
+        "categoryId": "1",
+        "options": {
+          "description": "=Merhaba! YouTube kanalımda, izlerken gülmekten kendinizi alamayacağınız eğlenceli ve komik videolar bulabilirsiniz. Kanalımda, popüler klipleri Türkçe altyazılarla paylaşarak, hem eğlenceyi hem de dili birleştiriyorum. Farklı içerikler ve esprili alt yazılarla her yaştan izleyiciye hitap ediyorum. Videolarımda güldüren anekdotlar, ilginç diyaloglar ve sürprizler sizi bekliyor! Amacım yalnızca insanları güldürmek ve eğlendirmek. Stresi bir kenara bırakıp, keyifli bir deneyim yaşamak isteyenler için doğru yerdesiniz!\n\nHer videoda, gülmek için bir neden bulacaksınız! Özellikle Türkçe altyazı ve eğlenceli metinlerle izleyicilerimi güldürmeyi hedefliyorum. Gülmeyi özleyen, yüzlerinde bir tebessüm görmek isteyen ve sıkıcı günlerinden kurtulmak isteyen herkese hitap ediyorum. Eğlenceli videolarla dolu kanalımda zaman geçirmek, kahkahalarla dolu bir dünyaya adım atmak istiyorsanız abone olmayı unutmayın! Burada, sadece gülen yüzler görmek için yer var!\n\n#Eğlence #Komedi #TürkçeAltyazı #Gülmekİçin #MutluOl #Kahkaha #EğlenceliVideolar #KomikAnlar #Gülümse #KliplerleEğlence #Eğlenceliİçerik #GülmekZamanı #TürkçeAltyazılı #EğlenceKanali",
+          "notifySubscribers": true,
+          "publicStatsViewable": true,
+          "selfDeclaredMadeForKids": false,
+          "tags": "Eğlence, Komedi, Film, Dizi, GOT, Game Of Thrones, Jon Snow"
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        0
+      ],
+      "id": "9bedafd9-0160-4b15-9a0b-6b078ad67e11",
+      "name": "YouTube",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "OyxXxaNh9XTJUShq",
+          "name": "YouTube accountgenaırobot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.json2video.com/v2/movies",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"id\": \"q72196y7\",\n  \"resolution\": \"instagram-story\",\n  \"quality\": \"high\",\n  \"draft\": true,\n  \"scenes\": [\n    {\n      \"id\": \"qzdzn1q3\",\n      \"elements\": [\n        {\n          \"id\": \"qny2isg3\",\n          \"type\": \"video\",\n          \"width\": 3413,\n          \"height\": 1920,\n          \"x\": -8,\n          \"y\": -8,\n          \"src\": \"https://videos.pexels.com/video-files/2126081/2126081-uhd_2560_1440_24fps.mp4\",\n          \"start\": 0,\n          \"duration\": 3\n        },\n        {\n          \"id\": \"qtg3b2el\",\n          \"type\": \"text\",\n          \"style\": \"002\",\n          \"text\": \"{{ $('On form submission').first().json['video caption'] }}\",\n          \"settings\": {\n            \"color\": \"#FFFFFF\",\n            \"font-size\": \"80px\",\n            \"font-family\": \"Roboto Condensed\",\n            \"shadow\": 2,\n            \"text-align\": \"left\",\n            \"vertical-align\": \"top\"\n          },\n          \"width\": 808,\n          \"x\": 172,\n          \"y\": 765,\n          \"height\": 396,\n          \"start\": 0,\n          \"duration\": 3\n        },\n        {\n          \"id\": \"qgdxzl3u\",\n          \"type\": \"audio\",\n          \"src\": \"https://ncsmusic.s3.eu-west-1.amazonaws.com/tracks/000/001/769/ark-slowed-1727366513-EYEsh6OTuC.mp3\",\n          \"duration\": 16,\n          \"start\": 0\n        },\n      {{ $json.data.map(item => JSON.stringify(item)) }}\n      ]\n    }\n  ],\n  \"elements\": [],\n  \"width\": 1080,\n  \"height\": 1920\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        0
+      ],
+      "id": "e2d2253a-980b-4600-9ebf-4654fc8e3e5b",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        368,
+        0
+      ],
+      "id": "b86f7997-9efa-429a-949e-911da7fbd66b",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.json2video.com/v2/movies/?project={{ $json.project }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        0
+      ],
+      "id": "d56741fb-8b7b-406c-aa19-d85e849b7368",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.movie.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "fb56a565-51dc-445b-9672-db8e3ffaf8f0",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "formTitle": "Video title and content form",
+        "formDescription": "Video content form",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "video image propmt",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "video caption",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -1088,
+        144
+      ],
+      "id": "560d53e6-77a7-4197-b6cb-2cad4f0b9193",
+      "name": "On form submission",
+      "webhookId": "074aa726-d3aa-4b52-a42a-4d291e586bea"
+    }
+  ],
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

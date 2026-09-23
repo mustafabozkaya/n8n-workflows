@@ -1,0 +1,347 @@
+{
+  "name": "AI Agent with Webhook for Open WebUI",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Agent with Webhook for Open WebUI",
+        "height": 525,
+        "width": 1596,
+        "color": 6
+      },
+      "id": "aa905649-c929-43d1-ac6c-69258adb5ce7",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Example Agent Tool",
+        "height": 340,
+        "width": 640,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        940,
+        500
+      ],
+      "id": "c72ec455-9b6e-427d-9b2d-037e84c5d56e",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f5ebbd4f-6549-4a31-b3f8-eee7634dc439",
+              "leftValue": "={{ $json.body.sessionId }}",
+              "rightValue": "None",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        160
+      ],
+      "id": "4a0d0ec0-77bc-47c5-826b-3c81481584ec",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        460,
+        480
+      ],
+      "id": "3f4c2930-db83-4e41-b26c-387d3157cc5f",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d264444f-c01a-4fa0-86a4-c0bf0e4c8537",
+              "name": "output",
+              "value": "={{ $json.output || $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1140,
+        80
+      ],
+      "id": "4bbbc3aa-9955-4919-928a-8ad841fe81c4",
+      "name": "Edit Fields (Set Output Field)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('If').item.json.chatInput}} \n\nEklenen json dosya içeriği :\n{{ $json.chattedText}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You expert n8n workflow automation specialist specializing in call center multi agent analysis system. \nDELIVERABLES FOR EACH WORKFLOW:\n\n   * A clear, step-by-step explanation of how the workflow functions.\n   * An outline of all triggers, conditions, actions, and integrations.\n * Complete & Validated JSON Workflow:\n   * A fully importable n8n workflow in JSON format, requiring no modification.\n   * Strict adherence to the latest n8n documentation standards and JSON schema.\n   * Validated for JSON correctness.\n * Setup & Credential Instruction File:\n   * Clear, concise instructions for setting up all required credentials (e.g., OpenAI, elevenlabs, gemini,Claude API key\n   * Provide clear insights into business trends and growth opportunities.\nREQUIREMENTS:\n * All workflows will adhere to current n8n best practices, optimized for performance and stability, and include robust error handling measures.\n * All JSON files will be strictly validated according to the latest n8n documentation standards (https://docs.n8n.io).\nAll out must be in json format "
+        }
+      },
+      "id": "27d16311-7711-427a-b117-4739b502ec73",
+      "name": "Primary AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        660,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook').item.json.body.chatInput }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        400,
+        300
+      ],
+      "id": "15cf4ee3-f121-4fbd-9125-2499905e391e",
+      "name": "Open WebUI Metadata LLM"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        680,
+        240
+      ],
+      "id": "ee958097-bf9c-41b0-a96a-5c9bd8aa30f8",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('If').item.json.sessionId}}",
+        "contextWindowLength": 6
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        320
+      ],
+      "id": "a97ac96f-36af-4a89-9d87-c7ee905e702f",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {
+          "allowFileUploads": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        320
+      ],
+      "id": "6b52a8a1-fa3c-474c-b415-d5a263101f56",
+      "name": "When chat message received",
+      "webhookId": "1637d71f-ac5c-4f8c-a0af-e1062f010e36"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst items = $input.all();\n\nreturn items.map(item => {\n  let text = '';\n  // Check if binary data exists and has a 'data' property\n  if (item.binary && item.binary.data0 && item.binary.data0.data) {\n    // Assuming 'data0.data' holds the base64 string\n    const base64String = item.binary.data0.data;\n    try {\n      text = Buffer.from(base64String, 'base64').toString('utf-8');\n    } catch (e) {\n      console.error('Error decoding base64:', e);\n      // Handle the error, perhaps by setting text to an empty string or an error message\n    }\n  } else {\n    // Handle cases where binary data might be missing or not in the expected format\n    console.warn('Binary data or expected data property not found for item:', item);\n    // You might want to set a default value or skip this item\n  }\n\n  return {\n    json: {\n      chattedText: text,\n      // You can add other properties here if needed\n      myNewField: 'someValue' // Example of adding the requested new field\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        20
+      ],
+      "id": "9531a194-6efe-484d-a8f2-94d455fad646",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "  {\n\n      workflow_json: parsedJson,\n      text_summary: textPart\n    }\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        360
+      ],
+      "id": "816a5239-7924-4a6b-b612-3a0c39e51834",
+      "name": "Structured Output Parser"
+    }
+  ],
+  "connections": {
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Open WebUI Metadata LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Open WebUI Metadata LLM",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields (Set Output Field)": {
+      "main": [
+        []
+      ]
+    },
+    "Primary AI Agent": {
+      "main": [
+        []
+      ]
+    },
+    "Open WebUI Metadata LLM": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields (Set Output Field)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Primary AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Primary AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Primary AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Primary AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,1600 @@
+{
+  "name": "End to end Cali Voice Analysis Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2860,
+        220
+      ],
+      "id": "0f04545a-464d-488d-9c85-e66111fdccf1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\nconsole.log(`🔄 Enhanced Multi-Agent Call Center Analysis Workflow started at ${now}`);\n\n// Initialize batch size and processing limits\nconst BATCH_SIZE = 5;\nconst MAX_PROCESSING_TIME_MS = 240000; // 4 minutes\n\nreturn [{\n  json: {\n    timestamp: now,\n    batch_size: BATCH_SIZE,\n    max_processing_time_ms: MAX_PROCESSING_TIME_MS,\n    workflow_version: \"2.0.0\",\n    processing_stats: {\n      calls_processed: 0,\n      successful: 0,\n      failed: 0,\n      skipped: 0,\n      total_processing_time_ms: 0\n    }\n  }\n}];"
+      },
+      "name": "Workflow Initialization",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2640,
+        220
+      ],
+      "id": "4e6c9447-4efb-4ef6-9faa-8c8afb37f571"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 1 AS connection_test",
+        "options": {}
+      },
+      "name": "Database Connection Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2420,
+        220
+      ],
+      "id": "383adb12-140f-4625-9244-762fdadf731a",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT table_name \nFROM information_schema.tables \nWHERE table_schema = 'public' \nAND table_name IN ('llm_analysis', 'calls', 'pipe_response', 'agent_results')\n",
+        "options": {}
+      },
+      "name": "Database Table Existence Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2200,
+        220
+      ],
+      "id": "17e7f4fd-117f-4941-b8d0-c234a2761208",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing tables from previous node\nconst existingTables = $input.all().map(item => item.json.table_name);\n\n// Define required tables\nconst requiredTables = ['llm_analysis', 'calls', 'pipe_response', 'agent_results'];\n\n// Find missing tables\nconst missingTables = requiredTables.filter(table => !existingTables.includes(table));\n\nif (missingTables.length > 0) {\n  console.log(`⚠️ Missing tables detected: ${missingTables.join(', ')}`);\n  console.log('⚠️ Please run the Infrastructure Setup and Validation Workflow first');\n} else {\n  console.log('✅ All required database tables exist');\n}\n\nreturn [{\n  json: {\n    infrastructure_valid: missingTables.length === 0,\n    missing_tables: missingTables,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Table Existence Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1980,
+        220
+      ],
+      "id": "5b98f92b-e3b9-494e-9d85-19e2d65f4914"
+    },
+    {
+      "parameters": {
+        "operation": "headBucket"
+      },
+      "name": "S3 Bucket Validation",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        220
+      ],
+      "id": "8df6d778-0698-427a-a298-a4f26d5c040e",
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\n\n// Get database validation result\nconst dbValid = $node['Table Existence Processing'].json.infrastructure_valid;\n\n// Check S3 bucket\nconst s3Valid = !error;\n\nif (!s3Valid) {\n  console.log(`⚠️ S3 bucket 'callintech' not accessible: ${error.message}`);\n  console.log('⚠️ Please run the Infrastructure Setup and Validation Workflow first');\n} else {\n  console.log('✅ S3 bucket exists and is accessible');\n}\n\n// Overall infrastructure validation\nconst infrastructureValid = dbValid && s3Valid;\n\nreturn [{\n  json: {\n    infrastructure_valid: infrastructureValid,\n    db_valid: dbValid,\n    s3_valid: s3Valid,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "S3 Validation Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1540,
+        220
+      ],
+      "id": "03fea585-0fd9-49a3-9fca-772731fec4ee"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.infrastructure_valid}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Infrastructure Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        220
+      ],
+      "id": "3e44947e-5ff0-421e-ab8c-b4fbd04f84c0"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls \nWHERE processed = FALSE AND skip = FALSE\nORDER BY created_at ASC\nLIMIT {{$node[\"Workflow Initialization\"].json[\"batch_size\"]}}",
+        "options": {}
+      },
+      "name": "Fetch Unprocessed Calls",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1100,
+        140
+      ],
+      "id": "e699a011-4026-4774-adde-1cf4bf90363a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get calls from previous node\nconst calls = $input.all();\n\n// Check if we have calls to process\nif (calls.length === 0) {\n  console.log('ℹ️ No unprocessed calls found, workflow will exit');\n  return [{\n    json: {\n      calls_found: false,\n      call_count: 0,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconsole.log(`ℹ️ Found ${calls.length} unprocessed calls to process`);\n\n// Update processing stats\nconst processingStats = $node['Workflow Initialization'].json.processing_stats;\nprocessingStats.calls_found = calls.length;\n\nreturn [{\n  json: {\n    calls_found: true,\n    call_count: calls.length,\n    processing_stats: processingStats,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Process Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        140
+      ],
+      "id": "1687879d-0a65-41aa-8f4b-c8640ac6503f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.calls_found}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Calls Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        140
+      ],
+      "id": "5b4df922-2dab-4226-b8d1-8ae21798b42c"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Split Calls for Processing",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        100
+      ],
+      "id": "9c9a67df-fd78-405d-931a-9de96a193e37"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.billsec}}",
+              "operation": "larger",
+              "value2": 15
+            }
+          ]
+        }
+      },
+      "name": "Call Duration Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        100
+      ],
+      "id": "d3bf62c3-2c8a-4c64-a6e1-0334b0eaf8de"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls \nSET processed = TRUE, skip = TRUE, skip_reason = 'call duration <= 15 sec', \n    updated_at = CURRENT_TIMESTAMP\nWHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "name": "Mark Short Calls as Skipped",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b1c32d44-28c7-45a4-a5df-18ffa0b9c0d9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get call data\nconst call = $input.first().json;\n\n// Format S3 path\nconst s3Path = `recordings/${call.callid}.mp3`;\n\nconsole.log(`ℹ️ Processing call ${call.callid} with duration ${call.billsec} seconds`);\nconsole.log(`ℹ️ Downloading recording from S3 path: ${s3Path}`);\n\n// Start processing timer\nconst processingStartTime = new Date().getTime();\n\nreturn [{\n  json: {\n    ...call,\n    s3_path: s3Path,\n    processing_start_time: processingStartTime\n  }\n}];"
+      },
+      "name": "Prepare S3 Download",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        140
+      ],
+      "id": "8895e763-063d-40ed-9e04-531a4cde6453"
+    },
+    {
+      "parameters": {},
+      "name": "Download Recording from S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        220,
+        140
+      ],
+      "id": "e375297b-1ffd-4d6a-aa02-01e85f2eb86b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.error}}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "name": "S3 Download Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        440,
+        140
+      ],
+      "id": "5fa22002-e3f4-4292-874b-3ce6b8641421"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get call data and error\nconst call = $input.first().json;\nconst error = call.error;\n\nconsole.log(`❌ Error downloading recording for call ${call.callid}: ${error.message}`);\n\n// Update processing stats\nconst processingStats = $node['Process Batch Size'].json.processing_stats;\nprocessingStats.failed++;\n\nreturn [{\n  json: {\n    ...call,\n    error_type: 'S3_DOWNLOAD_ERROR',\n    error_message: error.message,\n    processing_stats: processingStats\n  }\n}];"
+      },
+      "name": "Handle S3 Download Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -180
+      ],
+      "id": "7c913f4d-4001-48df-8830-d52f89461553"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get binary data from previous node\nconst binaryData = $input.first().binary;\n\n// Get call data\nconst call = $input.first().json;\n\n// Prepare for ElevenLabs API\nconst audioKey = Object.keys(binaryData)[0];\nconst audioData = binaryData[audioKey];\n\nconsole.log(`ℹ️ Sending audio for call ${call.callid} to ElevenLabs STT API`);\n\nreturn [{\n  json: {\n    ...call,\n    audio_data: audioData\n  },\n  binary: binaryData\n}];"
+      },
+      "name": "Prepare STT Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        140
+      ],
+      "id": "e785e41d-d86a-4168-8d26-c01801e60e37"
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "proxy": "",
+          "timeout": 1
+        }
+      },
+      "name": "ElevenLabs STT Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        880,
+        140
+      ],
+      "id": "4eb58287-77bf-4fef-8dde-2b138342df8d"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get STT response and call data\nconst sttResponse = $input.first().json;\nconst call = $input.first().json;\n\n// Check for errors\nif (sttResponse.error) {\n  console.log(`❌ STT error for call ${call.callid}: ${sttResponse.error}`);\n  \n  // Update processing stats\n  const processingStats = $node['Process Batch Size'].json.processing_stats;\n  processingStats.failed++;\n  \n  return [{\n    json: {\n      ...call,\n      error_type: 'STT_ERROR',\n      error_message: sttResponse.error,\n      processing_stats: processingStats\n    }\n  }];\n}\n\n// Process transcript\nconst transcript = sttResponse.text;\n\n// Structure conversation (simplified for example)\nconst structuredConversation = {\n  transcript: transcript,\n  words: sttResponse.words || [],\n  metadata: {\n    duration: call.billsec,\n    callid: call.callid\n  }\n};\n\nconsole.log(`✅ Successfully transcribed call ${call.callid}`);\n\nreturn [{\n  json: {\n    ...call,\n    conversation: structuredConversation,\n    transcript: transcript\n  }\n}];"
+      },
+      "name": "STT Response Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        140
+      ],
+      "id": "5f23b1e2-c132-4abd-89b0-c505ef1a5075"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get transcript\nconst { transcript, callid } = $input.first().json;\n\n// Simple language detection (would be more sophisticated in production)\nconst germanWords = ['der', 'die', 'das', 'und', 'ist', 'in', 'zu', 'den', 'für', 'nicht', 'ein', 'mit'];\nconst germanWordCount = germanWords.reduce((count, word) => {\n  const regex = new RegExp(`\\\\b${word}\\\\b`, 'gi');\n  const matches = transcript.match(regex) || [];\n  return count + matches.length;\n}, 0);\n\n// Determine language based on German word frequency\nconst language = germanWordCount > 5 ? 'DE' : 'EN';\n\nconsole.log(`🔍 Detected language for call ${callid}: ${language}`);\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    language_detected: language\n  }\n}];"
+      },
+      "name": "Language Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        140
+      ],
+      "id": "129f6976-0ba8-4782-9956-5cfecc651181"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get call data\nconst callData = $input.first().json;\nconst { callid, transcript, language_detected } = callData;\n\n// Create agent tasks\nconst agentTasks = [\n  {\n    agent_type: 'structure',\n    task: 'Analyze conversation structure, identify speakers and roles',\n    callid,\n    transcript,\n    language: language_detected\n  },\n  {\n    agent_type: 'sentiment',\n    task: 'Analyze sentiment and emotional tone throughout the conversation',\n    callid,\n    transcript,\n    language: language_detected\n  },\n  {\n    agent_type: 'content',\n    task: 'Identify main topics, key terms, and significant points in the conversation',\n    callid,\n    transcript,\n    language: language_detected\n  },\n  {\n    agent_type: 'sales',\n    task: 'Evaluate sales process, techniques, and outcomes',\n    callid,\n    transcript,\n    language: language_detected\n  },\n  {\n    agent_type: 'service',\n    task: 'Assess customer service quality, politeness, and problem resolution',\n    callid,\n    transcript,\n    language: language_detected\n  }\n];\n\nconsole.log(`🔄 Created 5 agent tasks for call ${callid}`);\n\nreturn [\n  {\n    json: {\n      ...callData,\n      agent_tasks: agentTasks,\n      agent_count: agentTasks.length\n    }\n  }\n];"
+      },
+      "name": "Agent Input Preparation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        140
+      ],
+      "id": "b8ff8482-2195-46ca-8e14-a433235a0c44"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Split to Parallel Agents",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        140
+      ],
+      "id": "ad934fb7-1dd0-4a29-a375-c3c855f4e4de"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get agent task\nconst agentTask = $input.first().json.agent_task;\nconst { agent_type, language, transcript, callid } = agentTask;\n\n// Base prompt parts\nlet systemPrompt = '';\nlet userPrompt = '';\n\n// Select appropriate model based on agent type\nlet modelSelection = '';\n\nswitch (agent_type) {\n  case 'structure':\n    systemPrompt = `You are a conversation structure analysis expert. Analyze the call transcript to identify speakers, their roles (agent/customer), and the flow of conversation.`;\n    userPrompt = `Analyze this call transcript and provide a structured JSON response with speaker identification, role assignment, and conversation flow analysis. Identify who is the call center agent and who is the customer.\\n\\nTranscript:\\n${transcript}\\n\\nRespond with valid JSON only, following this format:\\n{\\n  \"speakers\": [\\n    {\"id\": \"speaker1\", \"role\": \"agent|customer\", \"confidence\": \"high|medium|low\"},\\n    {\"id\": \"speaker2\", \"role\": \"agent|customer\", \"confidence\": \"high|medium|low\"}\\n  ],\\n  \"conversation_flow\": {\\n    \"greeting_quality\": \"excellent|good|poor|missing\",\\n    \"turn_taking\": \"balanced|agent_dominated|customer_dominated\",\\n    \"closing_quality\": \"excellent|good|poor|missing\"\\n  },\\n  \"structure_score\": 1-10\\n}`;\n    modelSelection = 'claude';\n    break;\n    \n  case 'sentiment':\n    systemPrompt = `You are an emotion and sentiment analysis expert. Analyze the call transcript to identify emotional tones, sentiment shifts, and overall emotional quality.`;\n    userPrompt = `Analyze this call transcript and provide a structured JSON response with sentiment analysis throughout the conversation.\\n\\nTranscript:\\n${transcript}\\n\\nRespond with valid JSON only, following this format:\\n{\\n  \"overall_sentiment\": \"positive|neutral|negative\",\\n  \"sentiment_score\": -1.0 to 1.0,\\n  \"emotional_tone\": {\\n    \"beginning\": \"string\",\\n    \"middle\": \"string\",\\n    \"end\": \"string\"\\n  },\\n  \"sentiment_shifts\": [\\n    {\"from\": \"string\", \"to\": \"string\", \"trigger\": \"string\"}\\n  ],\\n  \"customer_satisfaction_estimate\": 1-10\\n}`;\n    modelSelection = 'claude';\n    break;\n    \n  case 'content':\n    systemPrompt = `You are a content analysis expert. Analyze the call transcript to identify main topics, key terms, and significant points discussed.`;\n    userPrompt = `Analyze this call transcript and provide a structured JSON response with content analysis.\\n\\nTranscript:\\n${transcript}\\n\\nRespond with valid JSON only, following this format:\\n{\\n  \"main_topics\": [\"string\", \"string\"],\\n  \"key_terms\": [\"string\", \"string\"],\\n  \"significant_points\": [\"string\", \"string\"],\\n  \"questions_asked\": [\"string\", \"string\"],\\n  \"action_items\": [\"string\", \"string\"],\\n  \"content_relevance_score\": 1-10\\n}`;\n    modelSelection = 'openai';\n    break;\n    \n  case 'sales':\n    systemPrompt = `You are a sales process analysis expert. Analyze the call transcript to evaluate sales techniques, objection handling, and outcomes.`;\n    userPrompt = `Analyze this call transcript and provide a structured JSON response with sales process analysis.\\n\\nTranscript:\\n${transcript}\\n\\nRespond with valid JSON only, following this format:\\n{\\n  \"sale_outcome\": \"successful|unsuccessful|pending\",\\n  \"sale_value_scale\": 1-10,\\n  \"techniques_used\": [\"string\", \"string\"],\\n  \"objections_raised\": [\"string\", \"string\"],\\n  \"objection_handling_quality\": \"excellent|good|poor|n/a\",\\n  \"closing_attempt_quality\": \"excellent|good|poor|missing\",\\n  \"sales_score\": 1-10,\\n  \"price_negotiated\": true|false,\\n  \"positive_comment_passed_sale\": true|false,\\n  \"negative_comment_passed_sale\": true|false\\n}`;\n    modelSelection = 'openai';\n    break;\n    \n  case 'service':\n    systemPrompt = `You are a customer service quality analysis expert. Analyze the call transcript to assess politeness, problem resolution, and overall service quality.`;\n    userPrompt = `Analyze this call transcript and provide a structured JSON response with service quality analysis.\\n\\nTranscript:\\n${transcript}\\n\\nRespond with valid JSON only, following this format:\\n{\\n  \"greeting_quality\": \"excellent|good|poor|missing\",\\n  \"problem_resolution\": \"complete|partial|none|n/a\",\\n  \"politeness_score\": 1-10,\\n  \"empathy_demonstrated\": \"high|medium|low|none\",\\n  \"customer_addressed_politely\": true|false,\\n  \"conversation_fun\": true|false,\\n  \"service_advantages_mentioned\": true|false,\\n  \"other_platforms_mentioned\": true|false,\\n  \"service_score\": 1-10\\n}`;\n    modelSelection = 'claude';\n    break;\n    \n  default:\n    systemPrompt = `You are a call analysis expert. Analyze the provided call transcript.`;\n    userPrompt = `Analyze this call transcript and provide insights.\\n\\nTranscript:\\n${transcript}`;\n    modelSelection = 'openai';\n}\n\n// Adjust for language if needed\nif (language === 'DE') {\n  systemPrompt += ' Please analyze in German language context.';\n  userPrompt = userPrompt.replace('Analyze this call transcript', 'Analyze this German call transcript');\n}\n\nconsole.log(`🤖 Generated prompt for ${agent_type} agent for call ${callid}`);\n\nreturn [{\n  json: {\n    ...agentTask,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    model_selection: modelSelection,\n    processing_start_time: new Date().getTime()\n  }\n}];"
+      },
+      "name": "Agent Prompt Generation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        140
+      ],
+      "id": "b3655122-8181-41a1-8eae-69009e1079c1"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.model_selection}}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "claude"
+            },
+            {
+              "value2": "openai"
+            },
+            {
+              "value2": "gemini"
+            }
+          ]
+        },
+        "fallbackOutput": 0
+      },
+      "name": "Agent Execution Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        140
+      ],
+      "id": "1b55643a-af8e-4a7b-a977-3b146bc09e10"
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-3-opus-20240229"
+            },
+            {
+              "name": "max_tokens",
+              "value": 4000
+            },
+            {
+              "name": "system",
+              "value": "={{$json.system_prompt}}"
+            },
+            {
+              "name": "messages",
+              "value": "[{\"role\":\"user\",\"content\":\"{{$json.user_prompt}}\"}]"
+            },
+            {
+              "name": "temperature",
+              "value": 0.2
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "proxy": "",
+          "timeout": 0
+        }
+      },
+      "name": "Claude Agent Execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2420,
+        -160
+      ],
+      "id": "93808f49-9c1e-4332-b43e-b491e5d6a09b"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": "[{\"role\":\"system\",\"content\":\"{{$json.system_prompt}}\"},{\"role\":\"user\",\"content\":\"{{$json.user_prompt}}\"}]"
+            },
+            {
+              "name": "temperature",
+              "value": 0.2
+            },
+            {
+              "name": "max_tokens",
+              "value": 4000
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "proxy": "",
+          "timeout": 0
+        }
+      },
+      "name": "OpenAI Agent Execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2460,
+        340
+      ],
+      "id": "5d33ffbd-628f-4c61-bd9d-74d9b040aced"
+    },
+    {
+      "parameters": {
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={{$credentials.geminiApi.apiKey}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "[{\"role\":\"user\",\"parts\":[{\"text\":\"{{$json.system_prompt}}\\n\\n{{$json.user_prompt}}\"}]}]"
+            },
+            {
+              "name": "generationConfig",
+              "value": "{\"temperature\":0.2,\"maxOutputTokens\":4000}"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "proxy": "",
+          "timeout": 0
+        }
+      },
+      "name": "Gemini Agent Execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2440,
+        60
+      ],
+      "id": "ff9002c7-d32c-4bfc-80f1-89ddbfe85dce"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": [
+            {}
+          ]
+        },
+        "options": {
+          "multipleMatches": "first"
+        }
+      },
+      "name": "Agent Response Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        140
+      ],
+      "id": "2db2703c-41a6-4c48-8f46-f4a783ff34e5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get agent response and task data\nconst response = $input.first().json;\nconst agentTask = $input.first().json;\nconst { agent_type, callid } = agentTask;\n\n// Calculate processing time\nconst processingEndTime = new Date().getTime();\nconst processingTime = processingEndTime - agentTask.processing_start_time;\n\n// Initialize result variables\nlet resultJson = {};\nlet errorOccurred = false;\nlet errorMessage = '';\n\ntry {\n  // Extract result based on LLM provider\n  let rawResult = '';\n  \n  if (response.choices) {\n    // OpenAI format\n    rawResult = response.choices[0].message.content;\n  } else if (response.content) {\n    // Claude format\n    rawResult = response.content[0].text;\n  } else if (response.candidates) {\n    // Gemini format\n    rawResult = response.candidates[0].content.parts[0].text;\n  } else {\n    throw new Error('Unknown response format');\n  }\n  \n  // Extract JSON from response (handles cases where LLM adds extra text)\n  const jsonMatch = rawResult.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    resultJson = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No valid JSON found in response');\n  }\n  \n  console.log(`✅ Successfully processed ${agent_type} agent result for call ${callid}`);\n} catch (error) {\n  errorOccurred = true;\n  errorMessage = error.message;\n  console.log(`❌ Error processing ${agent_type} agent result: ${error.message}`);\n}\n\nreturn [{\n  json: {\n    callid,\n    agent_type,\n    result_json: JSON.stringify(resultJson),\n    processing_time_ms: processingTime,\n    error_occurred: errorOccurred,\n    error_message: errorMessage\n  }\n}];"
+      },
+      "name": "Agent Result Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        140
+      ],
+      "id": "e2c7a98b-0eff-46ff-b190-cc94fc5a37f0"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.agent_results \n(callid, agent_type, agent_result, processing_time_ms, error_occurred, error_message)\nVALUES (\n  '{{$json.callid}}', \n  '{{$json.agent_type}}', \n  '{{$json.result_json}}',\n  {{$json.processing_time_ms}},\n  {{$json.error_occurred}},\n  '{{$json.error_message}}'\n)\nON CONFLICT (callid, agent_type) \nDO UPDATE SET \n  agent_result = EXCLUDED.agent_result,\n  processing_time_ms = EXCLUDED.processing_time_ms,\n  error_occurred = EXCLUDED.error_occurred,\n  error_message = EXCLUDED.error_message,\n  created_at = CURRENT_TIMESTAMP",
+        "options": {}
+      },
+      "name": "Agent Result Storage",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3080,
+        80
+      ],
+      "id": "4a7ed4d1-25ed-4bd8-8e93-bb2104d0ee35"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileName": "=agent_results/{{$json.callid}}/{{$json.agent_type}}.json",
+        "binaryData": false,
+        "fileContent": "={{$json.result_json}}",
+        "additionalFields": {}
+      },
+      "name": "S3 Agent Result Storage",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        200
+      ],
+      "id": "3a46de12-ded6-4e4d-9380-e69357e48251"
+    },
+    {
+      "parameters": {},
+      "name": "Wait for All Agents",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        140
+      ],
+      "webhookId": "wait-for-agents",
+      "id": "c9c80880-9ff8-430a-9210-79ba2a6b8ccb"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all agent results\nconst agentResults = $input.all();\n\n// Get original call data\nconst callData = $node['Language Detection'].json;\nconst { callid, language_detected } = callData;\n\n// Organize results by agent type\nconst resultsByType = {};\nlet errorCount = 0;\n\nagentResults.forEach(item => {\n  const result = item.json;\n  resultsByType[result.agent_type] = {\n    result: result.result_json ? JSON.parse(result.result_json) : {},\n    error: result.error_occurred,\n    processing_time: result.processing_time_ms\n  };\n  \n  if (result.error_occurred) {\n    errorCount++;\n  }\n});\n\nconsole.log(`ℹ️ Collected results from ${agentResults.length} agents for call ${callid}`);\nconsole.log(`ℹ️ ${errorCount} agents reported errors`);\n\nreturn [{\n  json: {\n    ...callData,\n    agent_results: resultsByType,\n    agent_error_count: errorCount,\n    all_agents_completed: true\n  }\n}];"
+      },
+      "name": "Merge Agent Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        140
+      ],
+      "id": "a04df6ee-9301-4a83-bbfb-a082ccf5a7b1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get merged agent results\nconst { agent_results, callid, transcript, language_detected } = $input.first().json;\n\n// Format agent results for coordinator\nconst formattedResults = Object.entries(agent_results)\n  .map(([type, data]) => {\n    return `${type.toUpperCase()} AGENT RESULT:\\n${JSON.stringify(data.result, null, 2)}`;\n  })\n  .join('\\n\\n');\n\n// Create coordinator system prompt\nconst systemPrompt = `You are a Coordinator Agent responsible for resolving conflicts and producing a final analysis based on the outputs of multiple specialized agents. Your task is to review the results from all agents, identify any conflicts or inconsistencies, and produce a unified analysis that represents the most accurate understanding of the call.`;\n\n// Create coordinator user prompt\nconst userPrompt = `Review the following agent results for call ${callid} and produce a unified analysis.\n\nTRANSCRIPT EXCERPT (first 500 chars):\n${transcript.substring(0, 500)}...\n\nLANGUAGE: ${language_detected}\n\n${formattedResults}\n\nBased on these agent results, provide a unified analysis in valid JSON format following this structure:\n{\n  \"sentiment\": \"string\",\n  \"topic\": \"string\",\n  \"significant_term\": \"string\",\n  \"general_value\": \"string\",\n  \"general_experience\": \"string\",\n  \"email_inquired\": \"yes|no\",\n  \"positive_comment_passed_sale\": \"yes|no\",\n  \"negative_comment_passed_sale\": \"yes|no\",\n  \"price_negotiated\": \"yes|no\",\n  \"customer_addressed_politely\": \"yes|no\",\n  \"conversation_fun\": \"yes|no\",\n  \"service_advantages_mentioned\": \"yes|no\",\n  \"other_platforms_mentioned\": \"yes|no\",\n  \"sale_outcome\": \"string\",\n  \"sale_value_scale\": 1-10,\n  \"asked_if_commenters_known\": \"yes|no\",\n  \"high_profile_advantages_mentioned\": \"yes|no\",\n  \"coordination_confidence\": \"high|medium|low\",\n  \"agent_conflicts_resolved\": number\n}\n\nRespond with valid JSON only.`;\n\nconsole.log(`🤖 Generated coordinator prompt for call ${callid}`);\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    coordinator_system_prompt: systemPrompt,\n    coordinator_user_prompt: userPrompt,\n    coordinator_start_time: new Date().getTime()\n  }\n}];"
+      },
+      "name": "Coordinator Prompt Generation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        140
+      ],
+      "id": "1ca6891f-1a6e-41cb-a36f-ca34dadc163a"
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-3-opus-20240229"
+            },
+            {
+              "name": "max_tokens",
+              "value": 4000
+            },
+            {
+              "name": "system",
+              "value": "={{$json.coordinator_system_prompt}}"
+            },
+            {
+              "name": "messages",
+              "value": "[{\"role\":\"user\",\"content\":\"{{$json.coordinator_user_prompt}}\"}]"
+            },
+            {
+              "name": "temperature",
+              "value": 0.2
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "proxy": "",
+          "timeout": 0
+        }
+      },
+      "name": "Coordinator Execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3960,
+        140
+      ],
+      "id": "1923d41f-9256-4f8f-9cbb-f36a0d5da48e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get coordinator response\nconst response = $input.first().json;\nconst callData = $input.first().json;\nconst { callid } = callData;\n\n// Calculate processing time\nconst processingEndTime = new Date().getTime();\nconst processingTime = processingEndTime - callData.coordinator_start_time;\n\n// Initialize result variables\nlet finalResult = {};\nlet errorOccurred = false;\nlet errorMessage = '';\n\ntry {\n  // Extract result from Claude response\n  let rawResult = '';\n  \n  if (response.content) {\n    // Claude format\n    rawResult = response.content[0].text;\n  } else {\n    throw new Error('Unknown response format');\n  }\n  \n  // Extract JSON from response\n  const jsonMatch = rawResult.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    finalResult = JSON.parse(jsonMatch[0]);\n  } else {\n    throw new Error('No valid JSON found in response');\n  }\n  \n  console.log(`✅ Successfully processed coordinator result for call ${callid}`);\n} catch (error) {\n  errorOccurred = true;\n  errorMessage = error.message;\n  console.log(`❌ Error processing coordinator result: ${error.message}`);\n}\n\n// Add language detection to final result\nfinalResult.language_detected = callData.language_detected;\n\n// Update processing stats\nconst processingStats = $node['Process Batch Size'].json.processing_stats;\nprocessingStats.successful++;\n\nreturn [{\n  json: {\n    ...callData,\n    final_result: finalResult,\n    coordinator_processing_time_ms: processingTime,\n    coordinator_error: errorOccurred,\n    coordinator_error_message: errorMessage,\n    processing_stats: processingStats\n  }\n}];"
+      },
+      "name": "Final Result Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        140
+      ],
+      "id": "b46ce8f3-7b93-4753-b9b2-c651aa216495"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get final result and call data\nconst { final_result, callid, transcript, agent_results } = $input.first().json;\n\n// Create complete analysis object\nconst completeAnalysis = {\n  call_id: callid,\n  analysis_timestamp: new Date().toISOString(),\n  language_detected: final_result.language_detected,\n  transcript_excerpt: transcript.substring(0, 500) + '...',\n  coordinator_result: final_result,\n  agent_results: agent_results\n};\n\n// Format for S3 storage\nconst analysisJson = JSON.stringify(completeAnalysis, null, 2);\n\n// Generate S3 paths\nconst analysisS3Path = `analysis/${callid}.json`;\nconst transcriptS3Path = `transcripts/${callid}.json`;\n\n// Format transcript for S3\nconst transcriptJson = JSON.stringify({\n  call_id: callid,\n  transcript: transcript,\n  timestamp: new Date().toISOString()\n}, null, 2);\n\nconsole.log(`ℹ️ Preparing to store results for call ${callid}`);\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    analysis_json: analysisJson,\n    transcript_json: transcriptJson,\n    analysis_s3_path: analysisS3Path,\n    transcript_s3_path: transcriptS3Path\n  }\n}];"
+      },
+      "name": "Prepare Analysis for S3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        140
+      ],
+      "id": "952aa0e9-ff06-4f8c-9ed3-fb1de9d9dab2"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileName": "={{$json.analysis_s3_path}}",
+        "binaryData": false,
+        "fileContent": "={{$json.analysis_json}}",
+        "additionalFields": {}
+      },
+      "name": "Save Analysis to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        60
+      ],
+      "id": "20d3ed85-6cc4-415a-ab0a-52d80a886693"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileName": "={{$json.transcript_s3_path}}",
+        "binaryData": false,
+        "fileContent": "={{$json.transcript_json}}",
+        "additionalFields": {}
+      },
+      "name": "Save Transcript to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        220
+      ],
+      "id": "49500d7d-74dd-477c-8260-989239cc54c0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get final result and call data\nconst { final_result, callid } = $input.first().json;\n\n// Format boolean fields for PostgreSQL\nconst formatBoolean = (value) => {\n  if (value === 'yes') return 'true';\n  if (value === 'no') return 'false';\n  return value === true ? 'true' : 'false';\n};\n\n// Create database fields object\nconst dbFields = {\n  call_id: callid,\n  sentiment: final_result.sentiment || '',\n  topic: final_result.topic || '',\n  significant_term: final_result.significant_term || '',\n  general_value: final_result.general_value || '',\n  general_experience: final_result.general_experience || '',\n  email_inquired: formatBoolean(final_result.email_inquired),\n  positive_comment_passed_sale: formatBoolean(final_result.positive_comment_passed_sale),\n  negative_comment_passed_sale: formatBoolean(final_result.negative_comment_passed_sale),\n  price_negotiated: formatBoolean(final_result.price_negotiated),\n  customer_addressed_politely: formatBoolean(final_result.customer_addressed_politely),\n  conversation_fun: formatBoolean(final_result.conversation_fun),\n  service_advantages_mentioned: formatBoolean(final_result.service_advantages_mentioned),\n  other_platforms_mentioned: formatBoolean(final_result.other_platforms_mentioned),\n  sale_outcome: final_result.sale_outcome || '',\n  sale_value_scale: final_result.sale_value_scale || 0,\n  asked_if_commenters_known: formatBoolean(final_result.asked_if_commenters_known),\n  high_profile_advantages_mentioned: formatBoolean(final_result.high_profile_advantages_mentioned),\n  coordination_confidence: final_result.coordination_confidence || 'medium',\n  agent_conflicts_resolved: final_result.agent_conflicts_resolved || 0,\n  language_detected: final_result.language_detected || 'EN'\n};\n\nconsole.log(`ℹ️ Preparing database update for call ${callid}`);\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    db_fields: dbFields\n  }\n}];"
+      },
+      "name": "Prepare Database Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        140
+      ],
+      "id": "3ae1b281-6af7-417f-a294-cc90b2c0d810"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "llm_analysis",
+        "columns": "={{Object.keys($json.db_fields).join(',')}}",
+        "options": {}
+      },
+      "name": "Update Database with Analysis",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5040,
+        -100
+      ],
+      "id": "5204ac89-39a3-4614-a688-56ba83d0ed1c"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "calls",
+        "columns": "processed,updated_at",
+        "options": {}
+      },
+      "name": "Update Call Processing Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5040,
+        80
+      ],
+      "id": "1fc7a9dc-d697-4e6d-b00a-e0219e4d73ec"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": "pipe_response",
+        "columns": "callid,transcript_s3_url,analysis_s3_url,llm_processed",
+        "options": {}
+      },
+      "name": "Update Pipe Response Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5060,
+        380
+      ],
+      "id": "2076a5be-5740-4c53-a67e-709f390a1e33"
+    },
+    {
+      "parameters": {},
+      "name": "Wait for All Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        140
+      ],
+      "webhookId": "wait-for-calls",
+      "id": "8a1ba60d-f43c-412e-88cc-fafb4eef4e27"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all processed calls\nconst processedCalls = $input.all();\n\n// Get processing stats\nconst processingStats = $node['Process Batch Size'].json.processing_stats;\n\n// Calculate total processing time\nconst startTime = new Date($node['Workflow Initialization'].json.timestamp);\nconst endTime = new Date();\nconst totalProcessingTimeMs = endTime - startTime;\n\n// Update processing stats\nprocessingStats.total_processing_time_ms = totalProcessingTimeMs;\nprocessingStats.calls_processed = processedCalls.length;\n\nconsole.log(`✅ Batch processing complete`);\nconsole.log(`📊 Processed ${processingStats.calls_processed} calls in ${totalProcessingTimeMs}ms`);\nconsole.log(`📊 Success: ${processingStats.successful}, Failed: ${processingStats.failed}, Skipped: ${processingStats.skipped}`);\n\nreturn [{\n  json: {\n    processing_stats: processingStats,\n    completion_timestamp: endTime.toISOString()\n  }\n}];"
+      },
+      "name": "Processing Time Tracking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        140
+      ],
+      "id": "049137e4-a564-4eda-af3c-a9635137a673"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.processing_stats.failed}}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "name": "Errors Detected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        5720,
+        140
+      ],
+      "id": "97ed1e87-ed1c-4e7c-bbb9-704fd36cb480"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get processing stats\nconst { processing_stats } = $input.first().json;\n\n// Format error notification\nconst errorNotification = {\n  subject: `❌ Call Analysis Errors - ${new Date().toISOString()}`,\n  body: `\n  Call analysis encountered errors:\n  \n  Total calls processed: ${processing_stats.calls_processed}\n  Successful: ${processing_stats.successful}\n  Failed: ${processing_stats.failed}\n  Skipped: ${processing_stats.skipped}\n  \n  Please check the logs for more details.\n  `\n};\n\nconsole.log(`📧 Would send error notification: ${errorNotification.subject}`);\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    error_notification: errorNotification\n  }\n}];"
+      },
+      "name": "Format Error Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        60
+      ],
+      "id": "717f8bb6-289e-45cf-860f-a81e46ba6004"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get processing stats\nconst { processing_stats, completion_timestamp } = $input.first().json;\n\nconsole.log(`✅ Enhanced Multi-Agent Call Center Analysis Workflow completed at ${completion_timestamp}`);\nconsole.log(`📊 Final stats: ${processing_stats.calls_processed} calls processed, ${processing_stats.successful} successful, ${processing_stats.failed} failed, ${processing_stats.skipped} skipped`);\n\nreturn [{\n  json: {\n    workflow_status: 'completed',\n    completion_timestamp,\n    processing_stats\n  }\n}];"
+      },
+      "name": "Workflow Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        140
+      ],
+      "id": "f6307b47-229b-4b64-b40d-ddd6275201d6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format infrastructure validation error\nconst errorNotification = {\n  subject: `❌ Infrastructure Validation Failed - ${new Date().toISOString()}`,\n  body: `\n  The Multi-Agent Call Center Analysis Workflow could not run because the required infrastructure is not properly set up.\n  \n  Please run the Infrastructure Setup and Validation Workflow first to create the necessary database tables and S3 bucket structure.\n  `\n};\n\nconsole.log(`📧 Would send infrastructure validation error notification: ${errorNotification.subject}`);\n\nreturn [{\n  json: {\n    error_notification: errorNotification,\n    workflow_status: 'failed',\n    completion_timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Infrastructure Validation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1100,
+        300
+      ],
+      "id": "ea8a5662-c408-4431-a725-4a4105eb12ef"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Initialization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Initialization": {
+      "main": [
+        [
+          {
+            "node": "Database Connection Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Connection Check": {
+      "main": [
+        [
+          {
+            "node": "Database Table Existence Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Table Existence Check": {
+      "main": [
+        [
+          {
+            "node": "Table Existence Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table Existence Processing": {
+      "main": [
+        [
+          {
+            "node": "S3 Bucket Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Bucket Validation": {
+      "main": [
+        [
+          {
+            "node": "S3 Validation Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Validation Processing": {
+      "main": [
+        [
+          {
+            "node": "Infrastructure Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Infrastructure Valid?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unprocessed Calls",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Infrastructure Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unprocessed Calls": {
+      "main": [
+        [
+          {
+            "node": "Process Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Batch Size": {
+      "main": [
+        [
+          {
+            "node": "Calls Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calls Found?": {
+      "main": [
+        [
+          {
+            "node": "Split Calls for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Calls for Processing": {
+      "main": [
+        [
+          {
+            "node": "Call Duration Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Duration Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare S3 Download",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Short Calls as Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Short Calls as Skipped": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare S3 Download": {
+      "main": [
+        [
+          {
+            "node": "Download Recording from S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Recording from S3": {
+      "main": [
+        [
+          {
+            "node": "S3 Download Successful?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Download Successful?": {
+      "main": [
+        [
+          {
+            "node": "Prepare STT Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle S3 Download Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle S3 Download Error": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare STT Request": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs STT Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs STT Request": {
+      "main": [
+        [
+          {
+            "node": "STT Response Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STT Response Processing": {
+      "main": [
+        [
+          {
+            "node": "Language Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Language Detection": {
+      "main": [
+        [
+          {
+            "node": "Agent Input Preparation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Input Preparation": {
+      "main": [
+        [
+          {
+            "node": "Split to Parallel Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split to Parallel Agents": {
+      "main": [
+        [
+          {
+            "node": "Agent Prompt Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Prompt Generation": {
+      "main": [
+        [
+          {
+            "node": "Agent Execution Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Execution Router": {
+      "main": [
+        [
+          {
+            "node": "Claude Agent Execution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI Agent Execution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Agent Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Agent Execution": {
+      "main": [
+        [
+          {
+            "node": "Agent Response Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Agent Execution": {
+      "main": [
+        [
+          {
+            "node": "Agent Response Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Agent Execution": {
+      "main": [
+        [
+          {
+            "node": "Agent Response Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Response Merge": {
+      "main": [
+        [
+          {
+            "node": "Agent Result Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Result Processing": {
+      "main": [
+        [
+          {
+            "node": "Agent Result Storage",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "S3 Agent Result Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Result Storage": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Agent Result Storage": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for All Agents": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Agent Results": {
+      "main": [
+        [
+          {
+            "node": "Coordinator Prompt Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coordinator Prompt Generation": {
+      "main": [
+        [
+          {
+            "node": "Coordinator Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coordinator Execution": {
+      "main": [
+        [
+          {
+            "node": "Final Result Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Result Processing": {
+      "main": [
+        [
+          {
+            "node": "Prepare Analysis for S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Analysis for S3": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis to S3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Transcript to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analysis to S3": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Transcript to S3": {
+      "main": [
+        [
+          {
+            "node": "Prepare Database Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Database Update": {
+      "main": [
+        [
+          {
+            "node": "Update Database with Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Call Processing Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Pipe Response Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Database with Analysis": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Call Processing Status": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pipe Response Status": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for All Calls": {
+      "main": [
+        [
+          {
+            "node": "Processing Time Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processing Time Tracking": {
+      "main": [
+        [
+          {
+            "node": "Errors Detected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Errors Detected?": {
+      "main": [
+        [
+          {
+            "node": "Format Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Notification": {
+      "main": [
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Infrastructure Validation Error": {
+      "main": [
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

@@ -1,0 +1,349 @@
+{
+  "name": "Collaborative Research and Fact-Checking Report Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "22cf0a1e-032d-4b18-8761-1a46627e968e",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        432
+      ],
+      "webhookId": "c3416859-6167-41b9-8037-ce744434f2a8"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "newsApiKey",
+              "value": "<__PLACEHOLDER_VALUE__News API Key__>",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "serpApiKey",
+              "value": "<__PLACEHOLDER_VALUE__SerpAPI Key__>",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "5948338a-b03f-4a50-8b41-2a87d187b1d4",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an orchestrator agent that coordinates research and fact-checking tasks. You have access to two specialized agents: a Research Agent for gathering information and a Fact-Checking Agent for verifying claims. When given a topic, delegate research tasks to the Research Agent and fact-checking tasks to the Fact-Checking Agent. Compile their findings into a comprehensive, well-structured report with clear sections for research findings and fact-check results.",
+          "maxIterations": 10,
+          "returnIntermediateSteps": false,
+          "passthroughBinaryImages": true,
+          "enableStreaming": true
+        }
+      },
+      "id": "396a81c9-94f9-4c34-9889-0c64f063e447",
+      "name": "Orchestrator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-3-5-sonnet-20241022"
+        },
+        "options": {}
+      },
+      "id": "51114520-da51-4995-8300-ea38107fdf95",
+      "name": "Anthropic Model - Orchestrator",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        656
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "bf3d96fd-6fde-4247-a0a4-df429d7e3feb",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        576,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Research Agent - Gathers comprehensive information on topics using Wikipedia and Google Search",
+        "text": "=Research the following topic thoroughly: {{ $json.query }}. Use Wikipedia for encyclopedic information and Google Search for current news and diverse sources. Provide detailed findings with sources cited.",
+        "options": {}
+      },
+      "id": "67cb3902-1e00-4561-95f7-cb39b3c605e7",
+      "name": "Research Agent Tool",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        704,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-3-5-sonnet-20241022"
+        },
+        "options": {}
+      },
+      "id": "8883f520-3a42-4364-9e44-81c740a50455",
+      "name": "Anthropic Model - Research",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        592,
+        864
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Fact-Checking Agent - Verifies claims and information accuracy using multiple sources",
+        "text": "=Fact-check the following claim or information: {{ $json.query }}. Use Wikipedia and Google Search to verify accuracy. Provide a clear verdict (True/False/Partially True/Unverifiable) with supporting evidence and sources.",
+        "options": {}
+      },
+      "id": "55486294-bc26-4156-a083-64f41e7725a1",
+      "name": "Fact-Checking Agent Tool",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-3-5-sonnet-20241022"
+        },
+        "options": {}
+      },
+      "id": "ffbbd597-1a32-4477-b7f9-4f8ee668c5f2",
+      "name": "Anthropic Model - Fact Checker",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1056,
+        864
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "fe21eeee-f0dd-4e5e-9e14-7eb645698da2",
+      "name": "Wikipedia Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+      "typeVersion": 1,
+      "position": [
+        800,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c57fdcff-fb45-452d-97bc-e5cc84f5a8e1",
+      "name": "Google Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        928,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "ea8409ff-0dcc-4ba4-ad5d-821bf926fcc7",
+      "name": "News API Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        16,
+        96
+      ]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model - Orchestrator": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fact-Checking Agent Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestrator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model - Research": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model - Fact Checker": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fact-Checking Agent Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Fact-Checking Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Fact-Checking Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

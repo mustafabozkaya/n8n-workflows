@@ -1,0 +1,489 @@
+{
+  "name": "Multi-Source Document Processing with Vector Embeddings and AI Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Document Upload",
+        "formDescription": "Upload PDF, CSV, XLSX, or JSON files to add to the knowledge base",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload Document",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf, .csv, .xlsx, .json",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cf6a379c-c0ac-41a6-bf2b-93202e46027f",
+      "name": "Form Upload Trigger",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        256
+      ],
+      "webhookId": "a060ce9a-3594-44b7-9c0a-68723fe11711"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "bucketName": "<__PLACEHOLDER_VALUE__S3 bucket name__>",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "530a665c-d81c-416e-8abe-135b7121992c",
+      "name": "Get Files from S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        416,
+        64
+      ],
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "<__PLACEHOLDER_VALUE__SQL query to fetch file data (e.g., SELECT filename, file_data, file_type, upload_date FROM documents)__>",
+        "options": {}
+      },
+      "id": "bb3ce049-2738-4217-9df7-d3479443b797",
+      "name": "Get Files from MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        416,
+        448
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "<__PLACEHOLDER_VALUE__SQL query to fetch file data (e.g., SELECT filename, file_data, file_type, upload_date FROM documents)__>",
+        "options": {}
+      },
+      "id": "c58f4f3a-7c82-4d66-bc97-29518511a4f3",
+      "name": "Get Files from Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        416,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "id": "7005518f-2e07-4a51-b81a-caf4db99b107",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "documentKey",
+              "value": "={{ $json.data?.filename || $json.Key || $json.filename || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "uploadDate",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "fileType",
+              "value": "={{ $json.data?.file_type || $json.ContentType || $json.file_type || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "source",
+              "value": "={{ $node.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "2b5747e0-e412-45d3-9024-e72664a5c4d1",
+      "name": "Add Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Pinecone index name__>"
+        },
+        "options": {}
+      },
+      "id": "53ebc289-83ba-452e-be75-30bc94895e9c",
+      "name": "Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        1120,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "fbf43d72-ff96-4f39-b17d-40ee462ccb5b",
+      "name": "Document Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        1264,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 100
+      },
+      "id": "73c3cf2a-8b0e-41ef-9be8-fd0163fd6b10",
+      "name": "Token Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterTokenSplitter",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "abbd46e2-d6ae-4180-9c32-1590e7e5ae24",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1088,
+        576
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "Hello! I can answer questions based on the uploaded documents. What would you like to know?",
+        "options": {}
+      },
+      "id": "67440784-a1db-408a-883a-3803148333c4",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        1072
+      ],
+      "webhookId": "a1ef4e51-ef7f-4c8e-997b-27922fe3da95"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a helpful AI assistant with access to a knowledge base of documents. Answer questions based on the information in the documents. If you cannot find relevant information, say so clearly. Always cite which document your information comes from when possible."
+        }
+      },
+      "id": "05c34742-d649-46d7-8894-cb40e23bca9c",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "id": "25088efc-5a49-465f-98c8-107fc0b10e7f",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        640,
+        1296
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the knowledge base of uploaded documents to find relevant information. Use this when users ask questions about the documents.",
+        "pineconeIndex": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Pinecone index name (same as Vector Store)__>"
+        },
+        "topK": 5,
+        "useReranker": true,
+        "options": {}
+      },
+      "id": "fa81544d-f859-4414-821e-ec5516f2390a",
+      "name": "Vector Store Retriever",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        768,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "cee30e09-d62b-4808-9669-ef8110ecfad6",
+      "name": "OpenAI Embeddings for Retrieval",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        1472
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.rerankerCohere",
+      "typeVersion": 1,
+      "position": [
+        912,
+        1504
+      ],
+      "id": "9e86b480-c014-461e-a14a-d4560e010a4e",
+      "name": "Reranker Cohere"
+    }
+  ],
+  "connections": {
+    "Form Upload Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Files from S3": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Files from MySQL": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Get Files from Postgres": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Add Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Metadata": {
+      "main": [
+        [
+          {
+            "node": "Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Document Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Store Retriever": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Embeddings for Retrieval": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Vector Store Retriever",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reranker Cohere": {
+      "ai_reranker": [
+        [
+          {
+            "node": "Vector Store Retriever",
+            "type": "ai_reranker",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

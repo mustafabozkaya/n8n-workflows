@@ -1,0 +1,560 @@
+{
+  "name": "Firecrawl Extract agent",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://api.firecrawl.dev/v1/extract/{{ $('Firecrawl Extract').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -160
+      ],
+      "id": "af2c1d1c-0616-460d-bcc2-3db722b70a59",
+      "name": "Get Results",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jE9b0JxVs0Jxz6fn",
+          "name": "Header Auth Firecrawl "
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        20,
+        -160
+      ],
+      "id": "557d9fb2-9648-453e-b3b7-19dc9b0abc92",
+      "name": "30 Secs",
+      "webhookId": "e4866198-b806-4746-b57f-97333c497dbf"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        -40
+      ],
+      "id": "9b4fea5b-80d9-452c-ad0b-837d9a08c1c0",
+      "name": "10 Seconds",
+      "webhookId": "6cc8c637-bafb-4d64-9cd4-8ae2a9f5b7ca"
+    },
+    {
+      "parameters": {
+        "content": "# Firecrawl Extract\n",
+        "height": 860,
+        "width": 2460,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1440,
+        -480
+      ],
+      "id": "5a540e31-cc9a-4aa8-a2cf-5e8996aea797",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        -300
+      ],
+      "id": "3c34d53c-11f4-4308-ae26-cd8f2d049274",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "content": "# 🚀 Setup Guide  \n**Author:** [AI INSIGHT Hub](https://www.youtube.com/@ainsighthub)\n\n---\n\n## 🔥 Firecrawl Setup  \n- **[Get 10% Off Firecrawl](https://firecrawl.link/ainsighthub )**  \n- Set up your **Firecrawl API credential** in `n8n` under **Credentials > HTTP Request**  \n- In your workflow, configure the **URL** or a **List of URLs** you want to extract content from\n\n---\n\n## 🧑‍💻 Self-Hosting?\nIf you're self-hosting n8n, you can use the Firecrawl **Community Node**:  \n👉 [n8n Firecrawl Community Node](https://www.npmjs.com/package/n8n-nodes-firecrawl?activeTab=readme)\n\n---\n\n✅ Once set up, Firecrawl will intelligently extract relevant content from the provided pages based on your workflow logic.\n",
+        "height": 860,
+        "width": 340
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1800,
+        -480
+      ],
+      "typeVersion": 1,
+      "id": "2c110180-bf20-4e47-8cd3-08786fdf8534",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/extract",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"enableWebSearch\": false,\n  \"ignoreSitemap\": false,\n  \"includeSubdomains\": false,\n  \"showSources\": true,\n  \"scrapeOptions\": {\n    \"formats\": [\n      \"markdown\"\n    ]\n  },\n  \"ignoreInvalidURLs\": false,\n  \"urls\":{{ '[' + $('Loop Over Items').item.json.urls.map(url => `\"${url}\"`).join(', ') + ']' }} ,\n  \"prompt\": \"You are an AI assistant that analyzes raw HTML content of websites.   Your task is to extract detailed company information from the content.\\\\n\\\\n:mag: Look for:\\\\n- Sections labeled **“About Us”**, **“Impressum”**, **“Kontakt”**, or **“Über Uns”**.\\\\n- If the page is in **German**, search for keywords like:\\\\n  - **\\\\\\\"Inhaber\\\\\\\"**, **\\\\\\\"Geschäftsführer\\\\\\\"**, **\\\\\\\"Vorstand\\\\\\\"**, **\\\\\\\"Leiter\\\\\\\"**, **\\\\\\\"Gründer\\\\\\\"**.\\\\n- If the page is in **English**, search for keywords like:\\\\n  - **\\\\\\\"Owner\\\\\\\"**, **\\\\\\\"CEO\\\\\\\"**, **\\\\\\\"Founder\\\\\\\"**, **\\\\\\\"Director\\\\\\\"**, **\\\\\\\"Manager\\\\\\\"**.\\\\n\\\\n:outbox_tray: For each person found, extract and return the following:\\\\n\\\\n- `owner_name`: Full name of the person (e.g. \\\\\\\"Max Mustermann\\\\\\\")\\\\n- `position`: Their role/title in the company (e.g. \\\\\\\"Geschäftsführer\\\\\\\", \\\\\\\"CEO\\\\\\\")\\\\n- `company_name`: Full name of the company\\\\n- `email`: A contact email address associated with the company or person\\\\n- `url`: The page URL (e.g. Impressum or Kontakt page URL)\\\\n\\\\n:package: Output Format:\\\\nReturn a **JSON array of objects**, like this:\\\\n\\\\n[\\\\n  {\\\\n    \\\\\\\"owner_name\\\\\\\": \\\\\\\"Full Name\\\\\\\",\\\\n    \\\\\\\"position\\\\\\\": \\\\\\\"Position Title\\\\\\\",\\\\n    \\\\\\\"company_name\\\\\\\": \\\\\\\"Company Name\\\\\\\",\\\\n    \\\\\\\"email\\\\\\\": \\\\\\\"contact@example.com\\\\\\\",\\\\n    \\\\\\\"url\\\\\\\": \\\\\\\"https://example.com/impressum\\\\\\\"\\\\n  }\\\\n]\\\\n\\\\n:pushpin: Notes:\\\\n- Return **all relevant individuals**, not just the most senior.\\\\n- If no valid information is found, return an **empty array**: `[]`\\\\n- **Do not** include any text or explanation outside of the JSON array.\",\n  \"schema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"owner_name\": {\n        \"type\": \"string\"\n      },\n      \"adress\": {\n        \"type\": \"string\"\n      },\n      \"position\": {\n        \"type\": \"string\"\n      },\n      \"email\": {\n        \"type\": \"string\"\n      },\n      \"url\": {\n        \"type\": \"string\"\n      }\n    },\n    \"required\": [\n      \"owner_name\",\n      \"adress\",\n      \"email\",\n      \"url\"\n    ]\n  }\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -420,
+        -120
+      ],
+      "id": "f1d66170-0aa2-4e54-be06-23f85122d1a5",
+      "name": "Firecrawl Extract",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jE9b0JxVs0Jxz6fn",
+          "name": "Header Auth Firecrawl "
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ff812e47-d747-4f1a-8fa8-9f3d40ec2acd",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        -160
+      ],
+      "id": "0afa2271-292d-4585-8a9c-16ae4800b1a6",
+      "name": "If data is empty array",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "firecrawl-extract",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1420,
+        100
+      ],
+      "id": "569ddf10-0773-4da2-b2cf-2f81ca2ebabb",
+      "name": "Firecrawl Webhook",
+      "webhookId": "3f9b7e74-ebca-4be0-bece-2d9854bc4237"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b10d6cd1-c425-46dc-883e-596daefb4f42",
+              "name": "url",
+              "value": "={{ $json.body.url}}",
+              "type": "string"
+            },
+            {
+              "id": "8c87fdd6-f830-4edd-a284-517fa0eebae3",
+              "name": "target_paths",
+              "value": "={{ $json.body.target_paths}}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1360,
+        -140
+      ],
+      "id": "8eae3f9c-a490-4c9f-908a-04f0713c456c",
+      "name": "Edit Urls"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gelen tüm item'ları işliyoruz\nconst items = $input.all();\nconst results = [];\n\n// Her item için işlem yapıyoruz\nfor (const inputItem of items) {\n  const item = inputItem.json;\n  \n  // Webhook'tan gelen temel URL'yi alıyoruz\n  const baseUrl = item.url;\n  \n  // Eğer baseUrl boş ise, hata mesajı döndür\n  if (!baseUrl) {\n    results.push({\n      json: {\n        error: \"URL in incoming data is missing.\",\n        batch_id: item.batch_id || 'unknown'\n      }\n    });\n    continue;\n  }\n  \n  // target_paths, array olarak doğrudan veri içinde varsayılıyor\n  // Örn: [\"about\", \"services\", \"contact\"]\n  const targetPaths = item.target_paths;\n  \n  if (!Array.isArray(targetPaths) || targetPaths.length === 0) {\n    results.push({\n      json: {\n        error: \"Target paths are missing or not an array.\",\n        batch_id: item.batch_id || 'unknown'\n      }\n    });\n    continue;\n  }\n  \n  // Sonunda \"/\" varsa temizlenir\n  const cleanUrl = baseUrl.replace(/\\/$/, '');\n  \n  // Path'lerle birleştirilen URL'ler oluşturulur\n  const generatedUrls = targetPaths.map(path => `${cleanUrl}/${path}`);\n  \n  // Ana domain'i de ekle (isteğe bağlı)\n  generatedUrls.unshift(cleanUrl);\n  \n  // URL'leri 10'arlı gruplara ayır\n  const urlChunks = [];\n  for (let i = 0; i < generatedUrls.length; i += 10) {\n    urlChunks.push(generatedUrls.slice(i, i + 10));\n  }\n  \n  // Her chunk için ayrı bir output item oluştur\n  urlChunks.forEach((urlChunk, index) => {\n    results.push({\n      json: {\n        ...item,\n        urls: urlChunk,\n        batch_id: `${item.batch_id || 'batch'}_${index + 1}`,\n        chunk_index: index + 1,\n        total_chunks: urlChunks.length,\n        urls_in_chunk: urlChunk.length,\n        total_urls: generatedUrls.length\n      }\n    });\n  });\n}\n\n// n8n formatında çıktı veriyoruz\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        -140
+      ],
+      "id": "5c0d2fd9-a85e-4c53-bef9-315d3477101d",
+      "name": "Prepare Request Fields"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        0
+      ],
+      "id": "8a15f2a9-3b25-48dc-b784-f27795318945"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -820,
+        -140
+      ],
+      "id": "d8b4614e-0fe0-4997-8ae2-2bf51660804c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -620,
+        80
+      ],
+      "id": "7d5b161b-7a62-43a9-a939-e33e9b0b0b26",
+      "name": "View Lead Info"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -280,
+        80
+      ],
+      "id": "c5f201a6-c0a4-4c2c-b278-94f4a8ffdd19",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f873db5d-b30c-4ca7-bd02-9880803d5c20",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "07f369e0-7909-49b7-aec8-8402794bed32",
+              "leftValue": "={{ $json.data.keys().length }}",
+              "rightValue": "6",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "62b1d98f-aa58-47ec-a710-2f0a4b34ffb9",
+              "leftValue": "={{ $json.data.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "340a396a-d25d-45d3-80fc-29eb5319103b",
+              "leftValue": "={{ $json.data.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "4c4c43ac-2194-48ac-8357-dc632a3478fd",
+              "leftValue": "={{ $json.data.owner_name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "ec52aa8b-a2f0-4641-905f-26dd71143403",
+              "leftValue": "={{ $json.data.adress }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "00647753-6033-4a55-a128-9a1e1c0f6cc5",
+              "leftValue": "={{ $json.data.position }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        -300
+      ],
+      "id": "9e58758c-c844-474d-baf8-5c5aa81faf97",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1320,
+        -320
+      ],
+      "id": "7f62b3cd-984e-4124-ad54-8d58860edac3",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "connections": {
+    "Get Results": {
+      "main": [
+        [
+          {
+            "node": "If data is empty array",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30 Secs": {
+      "main": [
+        [
+          {
+            "node": "Get Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Get Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Extract": {
+      "main": [
+        [
+          {
+            "node": "30 Secs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If data is empty array": {
+      "main": [
+        [
+          {
+            "node": "10 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Urls": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request Fields": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "View Lead Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Firecrawl Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "View Lead Info": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

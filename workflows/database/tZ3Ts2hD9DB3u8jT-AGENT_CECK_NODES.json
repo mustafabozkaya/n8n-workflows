@@ -1,0 +1,1485 @@
+{
+  "name": "AGENT_CECK_NODES",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET processed = true ,updated_at = '{{ $now }}' WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "id": "ad035768-decf-446c-8c6a-033506019b0d",
+      "name": "Update Call Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -560,
+        1620
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pipe_response SET llm_processed = TRUE,  stt_error = '{{$json.error}}' WHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "id": "acb2bea6-e3a1-4454-bb2c-c1ad106e2591",
+      "name": "Update Error Status (STT)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2520,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "bucketName": "callintech",
+        "fileKey": "transcripts/unknown/112-1750752212.12867.json"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        -280
+      ],
+      "id": "012bb777-9f40-430b-bc1c-ed83d3abf055",
+      "name": "Download S3 File",
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-has-records",
+              "leftValue": "={{ $json }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1620,
+        -440
+      ],
+      "id": "11b2ade3-fbfb-449a-90fd-f7707b17667b",
+      "name": "Has Records to Process?",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "pipe_response",
+          "mode": "list",
+          "cachedResultName": "pipe_response"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "calltext": "={{ $('ElevenLabs STT').item.json.text || ($('Process Conversation').item.json.error ? $('Process Conversation').item.json.error : '') }}",
+            "phn": "={{ $('Download S3 File').item.json.phn || '' }}",
+            "calltype": "={{ $('Download S3 File').item.json.calltype || '' }}",
+            "ext": "={{ $('Download S3 File').item.json.ext || '' }}",
+            "response": "={{ $('Format LLM Response').item.json.sentiment }}",
+            "agent": "SCRIBE_V1",
+            "billsec": "={{ $('Download S3 File').item.json.billsec || 0 }}",
+            "note": "={{ JSON.stringify($json) || '' }}",
+            "llm_processed": true,
+            "analysis_s3_url": "={{ $json.analysis_url }}",
+            "transcript_s3_url": "={{ $json.transcript_url }}",
+            "callid": "={{ $json.callid }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "callid",
+              "displayName": "callid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "billsec",
+              "displayName": "billsec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltype",
+              "displayName": "calltype",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ext",
+              "displayName": "ext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phn",
+              "displayName": "phn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltext",
+              "displayName": "calltext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "llm_processed",
+              "displayName": "llm_processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "stt_error",
+              "displayName": "stt_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "transcript_s3_url",
+              "displayName": "transcript_s3_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "analysis_s3_url",
+              "displayName": "analysis_s3_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "llm_error",
+              "displayName": "llm_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1440,
+        1440
+      ],
+      "id": "459b5532-032a-449d-82a9-d21e912b7953",
+      "name": "Save to pipe_response1",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.llm_analysis (\n    callid, sentiment, topic, significant_term, general_value,\n    general_experience, email_inquired, positive_comment_passed_sale,\n    negative_comment_passed_sale, price_negotiated, customer_addressed_politely,\n    conversation_fun, service_advantages_mentioned, other_platforms_mentioned,\n    sale_outcome, sale_value_scale, asked_if_commenters_known,\n    high_profile_advantages_mentioned, llm_error_message\n)\nVALUES (\n    '{{ $('Format LLM Response').item.json.callid }}', '{{ $('Format LLM Response').item.json.sentiment }}', '{{ $('Format LLM Response').item.json.topic }}', '{{ $('Format LLM Response').item.json.significant_term }}',\n    '{{ $('Format LLM Response').item.json.general_value }}', '{{ $('Format LLM Response').item.json.general_experience }}', {{ $('Format LLM Response').item.json.email_inquired }},{{ $('Format LLM Response').item.json.positive_comment_passed_sale }},{{ $('Format LLM Response').item.json.negative_comment_passed_sale }},{{ $('Format LLM Response').item.json.price_negotiated }},{{ $('Format LLM Response').item.json.customer_addressed_politely }},{{ $('Format LLM Response').item.json.conversation_fun }},{{ $('Format LLM Response').item.json.service_advantages_mentioned }},{{ $('Format LLM Response').item.json.other_platforms_mentioned }}, '{{ $('Format LLM Response').item.json.sale_outcome }}', {{ $('Format LLM Response').item.json.sale_value_scale }}, {{ $('Format LLM Response').item.json.asked_if_commenters_known }},{{ $('Format LLM Response').item.json.high_profile_advantages_mentioned }}\n  ,'{{ $('Format LLM Response').item.json.llm_error_message }}'\n);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1700,
+        880
+      ],
+      "id": "39eee5e2-b3f1-4921-84af-e898c0f974c4",
+      "name": "Save llm_analysis ",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls   ORDER BY created_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -840,
+        220
+      ],
+      "id": "36636e95-cb0f-4d1f-b596-f101dc79ad0e",
+      "name": "get calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "ALTER TABLE public.calls RENAME COLUMN file_url TO recording_url;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2500,
+        580
+      ],
+      "id": "50e51fc7-b751-4985-9065-c6fdeaab03e6",
+      "name": "Update column name",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1140,
+        0
+      ],
+      "id": "233909fd-e03a-4612-8c92-896e1ec4874c",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "instantly",
+              "value": "YzhiYWUyZGYtMGZiNS00MzgzLTkzMDEtYjYyMmNkNWVjODY2OkVQcnZ5Rlh5UFVWTQ=="
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1620,
+        -260
+      ],
+      "id": "d343cbb2-f81e-4cca-961e-b28369fcdf80",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT attname, atttypid::regtype, attisdropped, attnum\nFROM pg_attribute\nWHERE attrelid = 'llm_analysis'::regclass\nAND attnum > 0\nORDER BY attnum;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1680,
+        1100
+      ],
+      "id": "ce28a614-1ea2-4621-b54d-5e06205fcbe1",
+      "name": "get llm_analysis columns",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT attname, atttypid::regtype, attisdropped, attnum\nFROM pg_attribute\nWHERE attrelid = 'calls'::regclass\nAND attnum > 0\nORDER BY attnum;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1100,
+        240
+      ],
+      "id": "94a1620a-4f0a-4a1f-a8cf-c3c502a85aba",
+      "name": "get calls columns",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "--SELECT * FROM public.calls WHERE skip = TRUE  ORDER BY created_at DESC \n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\nSELECT * FROM public.calls WHERE callid = '112-1750752212.12867' \n-- SELECT * FROM public.calls WHERE \"skip\" = True \n--UPDATE public.calls SET processed = false ,updated_at = '{{ $now }}' WHERE callid = '117-1748616726.70697'\n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -860,
+        1360
+      ],
+      "id": "2ae26c04-ed27-452b-9045-fc2b252461cc",
+      "name": "get 114-18333483472737.1 call",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM public.calls\nWHERE callid IN (\n    SELECT callid\n    FROM public.calls\n    GROUP BY callid\n    HAVING COUNT(callid) > 1\n);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -480,
+        900
+      ],
+      "id": "10993a80-7951-4a41-ab24-69bb28e856cc",
+      "name": "get duplicated calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true  ORDER BY created_at ASC LIMIT 5\nSELECT * FROM public.calls WHERE stt_processed = TRUE AND s3_uploaded = TRUE  ORDER BY created_at DESC ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -860,
+        660
+      ],
+      "id": "b6a04689-eac5-4759-8fc3-051c5895b4a5",
+      "name": "Get sttprocessed Calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true  ORDER BY created_at ASC LIMIT 5\nSELECT * FROM public.calls WHERE stt_processed = FALSE AND s3_uploaded = true AND\n  --skip = false AND  billsec IS NOT NULL\nORDER BY created_at DESC ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -860,
+        880
+      ],
+      "id": "3b03a891-0eee-4b1a-ab64-9cb34bfa9dad",
+      "name": "Get no sttprocessed Calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE s3_uploaded = TRUE  ORDER BY created_at DESC \n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\n--SELECT * FROM public.calls WHERE callid ='111-1748617516.73066' \n-- SELECT * FROM public.calls WHERE \"skip\" = True \n--UPDATE public.calls SET processed = false ,updated_at = '{{ $now }}' WHERE callid = '117-1748616726.70697'\n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\n--SELECT * FROM public.calls WHERE callid ='111-1748617516.73066' \n-- SELECT * FROM public.calls WHERE \"skip\" = True \n--UPDATE public.calls SET processed = false ,updated_at = '{{ $now }}' WHERE callid = '117-1748616726.70697'\n--UPDATE public.calls SET processed = true ,updated_at = '{{ $now }}' WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1100,
+        460
+      ],
+      "id": "d840dc20-d790-4605-bff6-1f181c17c40f",
+      "name": "get  s3_uploaded calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.pipe_response   \n-- WHERE callid ='112-1750764129.36645'\n  ORDER BY created_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1400,
+        140
+      ],
+      "id": "f51eb310-3bde-47ca-83d0-3784b14f8173",
+      "name": "Get pipe_response ",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.llm_analysis ORDER BY created_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1700,
+        460
+      ],
+      "id": "f2edfa5f-704b-49e2-a13c-265519643f69",
+      "name": "Get llm_analysis ",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT \n        b.phone_number c1, \n        NULL c2,\n        b.name c3, \n        b.email1 c6, \n        b.profile_url c9,\n        b.website c19,\n        b.category c20, \n        b.comment_count c21,\n        b.comment_avg c22, \n        'cold lead' c23,\n        b.fetched_website c25, \n        b.callintech_status,\n        b.cid\n    FROM business_lead_comments c\n    JOIN business_leads b ON c.business_id = b.id\n    WHERE c.rating <= 3\n    AND c.published_at > DATE_SUB(CURRENT_DATE(), INTERVAL 45 day) \n    AND b.callintech_status = 0\n    AND b.cid NOT IN (SELECT cid FROM companies_new WHERE cid IS NOT NULL)\n    ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2420,
+        -40
+      ],
+      "id": "9270c6f6-0ff8-4949-badf-80556bdb017a",
+      "name": "Lead DB businesses_lead",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT \n        b.phone_number c1, \n        NULL c2,\n        b.name c3, \n        b.email1 c6, \n        b.profile_url c9,\n        b.website c19,\n        b.category c20, \n        b.comment_count c21,\n        b.comment_avg c22, \n        'cold lead' c23,\n        b.fetched_website c25, \n        b.callintech_status,\n        b.cid\n    FROM business_lead_comments c\n    JOIN business_leads b ON c.business_id = b.id\n    WHERE c.rating <= 3\n    AND c.published_at > DATE_SUB(CURRENT_DATE(), INTERVAL 45 day) \n    AND b.callintech_status = 0\n    AND b.cid NOT IN (SELECT cid FROM companies_new WHERE cid IS NOT NULL)\n    AND b.name NOT LIKE '%Deichmann%'\n    AND b.name NOT LIKE '%Mc Donald%'\n    AND b.name NOT LIKE '%Burger King%'\n    AND b.name NOT LIKE '%Nah & Gut%'\n    AND b.name NOT LIKE '%Pandora%'\n    AND b.name NOT LIKE '%Carglas%'\n    AND b.name NOT LIKE '%Rewe%'\n    AND b.name NOT LIKE '%Edeka%'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2260,
+        -320
+      ],
+      "id": "1f5708d3-0554-47c1-bf0b-2c9a79368ed5",
+      "name": "Lead DB businesses lead without exclude companies",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT b.name\n            FROM business_lead_comments c\n            JOIN business_leads b ON c.business_id = b.id\n            WHERE c.rating <= 3\n            AND c.published_at > DATE_SUB(CURRENT_DATE(), INTERVAL 45 day) \n            AND b.callintech_status = 0\n            AND b.cid NOT IN (SELECT cid FROM companies_new WHERE cid IS NOT NULL)\n            AND (\n                b.name LIKE '%Deichmann%'\n                OR b.name LIKE '%Mc Donald%'\n                OR b.name LIKE '%Burger King%'\n                OR b.name LIKE '%Nah & Gut%'\n                OR b.name LIKE '%Pandora%'\n                OR b.name LIKE '%Carglas%'\n                OR b.name LIKE '%Rewe%'\n                OR b.name LIKE '%Edeka%'\n ) ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2660,
+        -200
+      ],
+      "id": "6b7c2ab0-64ac-4cb4-964c-abc612963c9b",
+      "name": "Lead DB businesses lead withexclude companies",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT callid, COUNT(*) AS adet\nFROM public.pipe_response \nGROUP BY callid\nHAVING COUNT(*) > 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1420,
+        820
+      ],
+      "id": "72e3810b-c2dd-45dc-a98d-0094f429da00",
+      "name": "Get pipe_response duplicates",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM public.pipe_response \nWHERE callid IN (\n    SELECT callid\n    FROM public.pipe_response\n    GROUP BY callid\n    HAVING COUNT(*) > 1\n)\nORDER BY callid, created_at DESC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1420,
+        1240
+      ],
+      "id": "4e202e2e-5326-4e3e-ac04-0ba33c9f6517",
+      "name": "Get pipe_response duplicates1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE \nFROM public.pipe_response\nWHERE serial_id NOT IN (\n    SELECT MAX(serial_id)\n    FROM public.pipe_response\n    GROUP BY callid\n);\n\n  \n /** \n SELECT *\nFROM public.pipe_response\nWHERE serial_id NOT IN (\n    SELECT MAX(serial_id)\n    FROM public.pipe_response\n    GROUP BY callid\n)\nORDER BY callid;\n**/\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1420,
+        1020
+      ],
+      "id": "2aceec1d-5586-4d30-bf4f-06da19bf6614",
+      "name": "Remove pipe_response duplicates3",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Verileri diğer tablolardan 'call_analysis' tablosuna aktarma sorgusu (MySQL Uyumlu)\n-- Bu sorgu, önce kaynak verideki yinelenen kayıtları temizler, sonra hedef tabloda zaten var olan kayıtları atlar.\nINSERT INTO call_analysis (\n    callid, sentiment, topic, significant_term, general_value, general_experience,\n    email_inquired, positive_comment_passed_sale, negative_comment_passed_sale,\n    price_negotiated, customer_addressed_politely, conversation_fun,\n    service_advantages_mentioned, other_platforms_mentioned, sale_outcome,\n    sale_value_scale, asked_if_commenters_known, high_profile_advantages_mentioned,\n    coordination_confidence, agent_conflicts_resolved, language_detected,\n    analysis_method, agent_count, llm_error_message,\n\n    calltype, ext, phn, url, call_direction, recording_url, skip_reason, skip, h_agent,\n    s3_uploaded, stt_processed_calls,\n\n    agent, response, calltext, note, transcript_s3_url, analysis_s3_url,\n    llm_processed, stt_processed_pipe, llm_error_pipe,\n\n    created_at, updated_at\n)\nWITH UniqueLLM AS (\n    -- İlk olarak, llm_analysis tablosundaki yinelenen callid'leri temizleyelim.\n    -- Her callid için en güncel kaydı seçmek amacıyla ROW_NUMBER() pencere fonksiyonu kullanılır.\n    SELECT *,\n           ROW_NUMBER() OVER(PARTITION BY callid ORDER BY COALESCE(updated_at, created_at, '1970-01-01') DESC) as rn\n    FROM llm_analysis\n)\nSELECT\n    la.callid, la.sentiment, la.topic, la.significant_term, la.general_value, la.general_experience,\n    la.email_inquired, la.positive_comment_passed_sale, la.negative_comment_passed_sale,\n    la.price_negotiated, la.customer_addressed_politely, la.conversation_fun,\n    la.service_advantages_mentioned, la.other_platforms_mentioned, la.sale_outcome,\n    la.sale_value_scale, la.asked_if_commenters_known, la.high_profile_advantages_mentioned,\n    la.coordination_confidence, la.agent_conflicts_resolved, la.language_detected,\n    la.analysis_method, la.agent_count, la.llm_error_message,\n\n    c.calltype, c.ext, c.phn, c.url, c.call_direction, c.recording_url, c.skip_reason, c.skip, c.h_agent,\n    c.s3_uploaded, c.stt_processed AS stt_processed_calls,\n\n    pr.agent, pr.response, pr.calltext, pr.note, pr.transcript_s3_url, pr.analysis_s3_url,\n    pr.llm_processed, pr.stt_processed AS stt_processed_pipe, pr.llm_error AS llm_error_pipe,\n\n    COALESCE(la.created_at, c.created_at, pr.created_at),\n    COALESCE(la.updated_at, c.updated_at, pr.updated_at)\nFROM\n    -- Sadece tekilleştirilmiş kayıtları kullanmak için bir alt sorgu oluşturulur.\n    (SELECT * FROM UniqueLLM WHERE rn = 1) la\nJOIN\n    calls c ON la.callid = c.callid\nLEFT JOIN\n    pipe_response pr ON la.callid = pr.callid\nLEFT JOIN\n    -- Hedef tabloda zaten var olan kayıtları filtrelemek için bir LEFT JOIN daha eklenir.\n    call_analysis ca ON la.callid = ca.callid\nWHERE\n    ca.callid IS NULL;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1980,
+        720
+      ],
+      "id": "361fde95-d6eb-4bfa-b329-713455879656",
+      "name": "Insert cal_analysis",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true  ORDER BY created_at ASC LIMIT 5\nSELECT * FROM public.pipe_response WHERE stt_processed = TRUE AND llm_processed = TRUE ORDER BY created_at DESC ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1400,
+        400
+      ],
+      "id": "6d5bbd7f-861b-43a4-bb07-ec3f519226df",
+      "name": "Get pipe_response llm_processed",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM llm_analysis where callid = '111-1748613000.66306'\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1700,
+        660
+      ],
+      "id": "39a47190-1bd0-4ae8-aac6-0854328f5a8e",
+      "name": "Get llm_analysis where callid",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "ALTER TABLE public.llm_analysis\nADD COLUMN serial_id BIGSERIAL;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1660,
+        1300
+      ],
+      "id": "b3f742c2-ac1a-4650-a145-2cf2d2faf741",
+      "name": "Alter table llm_analysis",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.call_analysis ORDER BY updated_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1980,
+        460
+      ],
+      "id": "2738f432-938c-4434-b9c9-b0ac210f7e31",
+      "name": "Get cal_analysis order by serial id",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "call_analysis",
+          "mode": "list",
+          "cachedResultName": "call_analysis"
+        },
+        "returnAll": true,
+        "sort": {
+          "values": [
+            {
+              "column": "updated_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2040,
+        -20
+      ],
+      "id": "a170c19c-7fa3-4ec3-a6e9-11f3d161cd52",
+      "name": "MySQL 63.178.marcaspiocrm call_analysis tbl order by uptated",
+      "credentials": {
+        "mySql": {
+          "id": "vflrpedZJ30HiVdF",
+          "name": "MySQL 63.178.96.101:3306/marcaspiocrm"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET stt_processed = false,updated_at = '{{ $now }}' WHERE callid = '112-1750752212.12867'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1040,
+        1600
+      ],
+      "id": "c6276e77-d874-423e-a6a6-d4073ecb1652",
+      "name": "Update calls stt_processedstt_processed = false112-1750752212.12867.json",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pipe_response SET stt_processed = false,updated_at = '{{ $now }}' WHERE callid = '112-1750752212.12867'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1040,
+        1840
+      ],
+      "id": "64d028f8-2cc4-4c6d-9d66-7772ec0975b5",
+      "name": "Update calls stt_processedstt_processed = false112-1750752212.12867.json1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT callid FROM public.calls WHERE call_direction = 'unknown';\n\n/**\nSELECT * FROM public.pipe_response\nWHERE callid IN (\n    SELECT callid\n    FROM public.calls\n    WHERE call_direction = 'unknown'\n);\n*/\n\nUPDATE public.calls\nSET stt_processed = false\nWHERE callid IN (\n    SELECT callid\n    FROM public.calls\n    WHERE call_direction = 'unknown'\n);\n\n  \n",
+        "options": {}
+      },
+      "id": "e2d653fa-81f3-4af9-9840-047cf4d1bd0d",
+      "name": "Update Call direction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -820,
+        1600
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT callid FROM public.calls WHERE call_direction = 'unknown';\n\n/*\nSELECT * FROM public.pipe_response\nWHERE callid IN (\n    SELECT callid\n    FROM public.calls\n    WHERE call_direction = 'unknown'\n);\n*/\n\n  /*\nUPDATE public.pipe_response\nSET stt_processed = false\nWHERE callid IN (\n    SELECT callid\n    FROM public.calls\n    WHERE call_direction = 'unknown'\n);\n*/\nUPDATE public.calls\nSET stt_processed = false\nWHERE call_direction = 'unknown';",
+        "options": {}
+      },
+      "id": "4b36b01c-a344-4950-a92e-7f7fba0953d0",
+      "name": "Update Call direction1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -800,
+        1840
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- INBOUND için güncelle\n/*\nUPDATE public.calls\nSET \n  call_direction = 'inbound',\n  s3_path = regexp_replace(s3_path, '/unknown/', '/inbound/')\nWHERE s3_path ILIKE '%/inbound/%' OR s3_path ILIKE '%/unknown/%' AND url ILIKE '%/INBOUND-%';\n*/\n  /*\n-- OUTBOUND için güncelle\nUPDATE public.calls\nSET \n  call_direction = 'outbound',\n  s3_path = regexp_replace(s3_path, '/unknown/', '/outbound/')\nWHERE s3_path ILIKE '%/outbound/%' OR s3_path ILIKE '%/unknown/%' AND url ILIKE '%/OUTBOUND-%';\n*/\n  \nSELECT callid, s3_path\nFROM public.calls\nWHERE s3_path ILIKE '%/unknown/%';\n",
+        "options": {}
+      },
+      "id": "61d97c2b-90f7-4834-841d-86513275bacd",
+      "name": "Update Call s3path",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -560,
+        1840
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE s3_uploaded = false  ORDER BY created_at DESC \n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\n--SELECT * FROM public.calls WHERE callid ='111-1748617516.73066' \n-- SELECT * FROM public.calls WHERE \"skip\" = True \n--UPDATE public.calls SET processed = false ,updated_at = '{{ $now }}' WHERE callid = '117-1748616726.70697'\n--DELETE FROM public.llm_analysis WHERE callid ='111-1748617516.73066' \n\n--SELECT * FROM public.calls WHERE callid ='111-1748617516.73066' \n-- SELECT * FROM public.calls WHERE \"skip\" = True \n--UPDATE public.calls SET processed = false ,updated_at = '{{ $now }}' WHERE callid = '117-1748616726.70697'\n--UPDATE public.calls SET processed = true ,updated_at = '{{ $now }}' WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1080,
+        660
+      ],
+      "id": "b699c44c-1e3e-4654-967b-a5d69536fadd",
+      "name": "get  s3_uploaded false calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true  ORDER BY created_at ASC LIMIT 5\nSELECT * FROM public.pipe_response WHERE stt_processed = TRUE AND llm_processed = FALSE ORDER BY created_at DESC ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1400,
+        600
+      ],
+      "id": "ff89e036-83e5-4a5f-a017-b5a3d4e19076",
+      "name": "Get pipe_response llm_processed false",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM llm_analysis la\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM pipe_response pr\n    WHERE pr.callid = la.callid\n)  \nORDER BY created_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1700,
+        160
+      ],
+      "id": "f09bf45a-e969-438d-b867-1910b022de40",
+      "name": "Get llm_analysis not pipe_response",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM pipe_response pr\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM llm_analysis la\n    WHERE la.callid = pr.callid\n) \nORDER BY created_at DESC \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1540,
+        260
+      ],
+      "id": "60375f0b-4056-4950-b4eb-dcc81eec4ffd",
+      "name": "Get pipe_response not llm_analysis",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "calls",
+          "mode": "list",
+          "cachedResultName": "calls"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "skip",
+              "value": "True "
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -840,
+        460
+      ],
+      "id": "3631d7c5-acaf-486e-a1b5-8b9d9904a47f",
+      "name": "get skipped STT calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "PostgreSQL dwh db"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SHOW DATABASES;\n-- SHOW FULL TABLES;\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2240,
+        200
+      ],
+      "id": "e9ad1dcf-1f8b-4988-9610-af8856ca5455",
+      "name": "MySQL 63.178.96.101 dbs",
+      "credentials": {
+        "mySql": {
+          "id": "vflrpedZJ30HiVdF",
+          "name": "MySQL 63.178.96.101:3306/marcaspiocrm"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SHOW DATABASES;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2500,
+        180
+      ],
+      "id": "465f03ce-c33e-4eef-8e6b-22cb9ef34102",
+      "name": "MySQL 194.5.236.214 dbs",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SHOW DATABASES;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2720,
+        140
+      ],
+      "id": "61b9291c-f1ba-44ec-ba42-bea79ecc4f5f",
+      "name": "MySQL 194.5.236.214 dbs1",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SHOW DATABASES \nSELECT table_name\nFROM information_schema.tables\nWHERE table_schema = 'marcaspiocrm';\n \n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -1940,
+        220
+      ],
+      "id": "da6a1742-b0c6-4140-b80f-09d06c37429f",
+      "name": "MySQL 63.178.96.101 dbs1",
+      "credentials": {
+        "mySql": {
+          "id": "vflrpedZJ30HiVdF",
+          "name": "MySQL 63.178.96.101:3306/marcaspiocrm"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    COUNT(*) AS total_records,\n    COUNT(DISTINCT email1) AS unique_emails\nFROM lead_db.business_leads;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2980,
+        140
+      ],
+      "id": "923df1b1-d796-4f9f-937c-e17e4c964e56",
+      "name": "lead_db.business_leads",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    COUNT(*) AS total_records,\n    COUNT(DISTINCT email1) AS unique_emails\nFROM lead_db.business_leads;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2140,
+        0
+      ],
+      "id": "1d53c229-a816-4856-bdac-3f5e33304cd8",
+      "name": "lead_db.business_leads1",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\n  select \n      lc.main_category,\n\t lc.category,\n\t lc.category_group,\n\t lc.category_tr,\n\t lc.category_group_tr,\n     bl.*\nfrom business_leads bl join lead_category lc  on bl.category =lc.category\n  \nwhere (bl.email IS NOT NULL \nor bl.email1 IS NOT NULL)\nAND  bl.email1 !='[email if found]'\n AND (\n -- lc.main_category = 'Doktor'  or\n  lc.main_category = 'İmmo' or\n    lc.main_category = 'Avukat' or\n   lc.main_category = 'Handwerk' or \n  lc.category = \"Autohandler\"\n  )\n  and \n( -- bl.pipelined = 1 OR\n  bl.pipelined IS NULL OR bl.pipelined = 0) \n  ORDER BY created_at ASC\n  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2760,
+        380
+      ],
+      "id": "b668914e-bd7d-48c0-8701-6ea8f03edffc",
+      "name": "Instantly category records",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\n    select \n  COUNT(1)\n    FROM lead_db.business_leads b\n        left JOIN lead_db.callintech_data  tcd ON tcd.clean_cid  = b.cid\n        JOIN lead_db.lead_category lc ON b.category = lc.category\n        WHERE\n        lc.is_active =1 and\n        (\n        lc.callintech_category_name  like '%%21%%' \n        )\n        and b.comment_count>=5  \n        and b.comment_avg <=4.8\n        and b.address   LIKE \"%%Deutschland%%\"\n        and b.phone_number <> ''  and b.phone_number !=''\n        and b.phone_number !='' and b.phone_number !=\"NoPhone\" \n        and b.callintech_status =0\n        and tcd.id is null\n        and (b.is_business_closed is null or b.is_business_closed =0 )    \n        and (b.is_excluded  is null or b.is_excluded  =0 )\n        ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -3020,
+        360
+      ],
+      "id": "34e7d89d-622a-4f2b-9aeb-1a80b1233160",
+      "name": "Unsent callintech new leads",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\n\nselect \n    Count(2)\n    FROM lead_db.business_leads b\n        left JOIN lead_db.callintech_data  tcd ON tcd.clean_cid  = b.cid\n        JOIN lead_db.lead_category lc ON b.category = lc.category\n        WHERE\n        lc.is_active =1 and\n        (\n        lc.callintech_category_name  like '%%21%%' \n        )\n        and b.comment_count>=5  \n        and b.comment_avg <=4.8\n        and b.address   LIKE \"%%Deutschland%%\"\n        and b.phone_number <> ''  and b.phone_number !=''\n        and b.phone_number !='' and b.phone_number !=\"NoPhone\" \n        and b.callintech_status =1\n        and tcd.id is null\n        and (b.is_business_closed is null or b.is_business_closed =0 )    \n        and (b.is_excluded  is null or b.is_excluded  =0 )\n        and b.callintech_sync > date_sub(now(),INTERVAL 3 DAY)\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -3020,
+        560
+      ],
+      "id": "df5e5e15-dd2e-47b9-9146-d7e8152c1c7c",
+      "name": "Unsent callintech new leads1",
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL 194.5.236.214 lead_db"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Update Call Status": {
+      "main": [
+        []
+      ]
+    },
+    "Update Error Status (STT)": {
+      "main": [
+        []
+      ]
+    },
+    "Download S3 File": {
+      "main": [
+        []
+      ]
+    },
+    "Has Records to Process?": {
+      "main": [
+        []
+      ]
+    },
+    "Save to pipe_response1": {
+      "main": [
+        []
+      ]
+    },
+    "Save llm_analysis ": {
+      "main": [
+        []
+      ]
+    },
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "get calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get pipe_response duplicates1": {
+      "main": [
+        []
+      ]
+    },
+    "get calls": {
+      "main": [
+        [
+          {
+            "node": "get  s3_uploaded calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get pipe_response ": {
+      "main": [
+        []
+      ]
+    },
+    "get  s3_uploaded calls": {
+      "main": [
+        [
+          {
+            "node": "get  s3_uploaded false calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get sttprocessed Calls": {
+      "main": [
+        []
+      ]
+    },
+    "Get no sttprocessed Calls": {
+      "main": [
+        []
+      ]
+    },
+    "Get pipe_response llm_processed": {
+      "main": [
+        []
+      ]
+    },
+    "Get llm_analysis ": {
+      "main": [
+        []
+      ]
+    },
+    "MySQL 63.178.marcaspiocrm call_analysis tbl order by uptated": {
+      "main": [
+        []
+      ]
+    },
+    "Get cal_analysis order by serial id": {
+      "main": [
+        []
+      ]
+    },
+    "get  s3_uploaded false calls": {
+      "main": [
+        []
+      ]
+    },
+    "get skipped STT calls": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

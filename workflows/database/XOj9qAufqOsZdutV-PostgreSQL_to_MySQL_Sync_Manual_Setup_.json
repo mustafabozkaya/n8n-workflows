@@ -1,0 +1,70 @@
+{
+  "name": "PostgreSQL to MySQL Sync (Manual Setup)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e6f43e06-96b6-4b8a-80e9-3b687f48b941",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.schedule",
+      "position": [
+        400,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "18f15d73-2e21-4d37-8898-33306ed9d96c",
+      "name": "Fetch New/Updated Data",
+      "type": "n8n-nodes-base.postgreSql",
+      "position": [
+        400,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buraya MySQL sorgusunu yapıştıracaksınız.",
+        "options": {}
+      },
+      "id": "e0d04c53-b4d2-435e-a615-512c011e4063",
+      "name": "Insert If Not Exists",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        1020,
+        760
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch New/Updated Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch New/Updated Data": {
+      "main": [
+        [
+          {
+            "node": "Insert If Not Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

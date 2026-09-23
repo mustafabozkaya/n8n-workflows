@@ -1,0 +1,599 @@
+{
+  "name": "CALL CENTER S3 UPLOAD",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE stt_processed = false \n  and s3_uploaded_error is NULL\n  AND s3_uploaded = false \n --and billsec IS NOT NULL \n --AND url IS NOT NULL \n  ORDER BY created_at DESC LIMIT 5",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2060,
+        70
+      ],
+      "id": "87ae6a5c-6b3d-4ebe-acfa-4a128dff6a1f",
+      "name": "get calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1180,
+        -80
+      ],
+      "id": "c192fe98-b902-4f6e-af1e-19b3da41983e",
+      "name": "get call file",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Her zaman bir item dön, böylece her dosya için işlem devam eder\nconst item = $input.first();\n\n// Gelen veriyi kontrol et\nconsole.log('Code noduna gelen veri:', JSON.stringify(item.json, null, 2));\n\n// callid değerini doğru şekilde al\nlet callid = '';\ntry {\n  // Farklı kaynaklardan callid bulmaya çalış\n  if (item.json.callid) {\n    callid = item.json.callid;\n    console.log('Callid doğrudan json\\'dan alındı:', callid);\n  } else if (item.json.Key && item.json.Key.includes('/')) {\n    // Key'den callid çıkar (calls/outbound/CALLID.wav)\n    const keyParts = item.json.Key.split('/');\n    const lastPart = keyParts[keyParts.length - 1];\n    callid = lastPart.split('.wav')[0]; // .wav uzantısını kaldır, diğer noktaları koru\n    console.log('Callid key\\'den alındı:', callid);\n  } else if (item.json.Location) {\n    // URL'den callid çıkar - tüm callid'yi koru (.1.1 gibi kısımlar dahil)\n    const match = item.json.Location.match(/\\/([\\-0-9.]+)\\.wav/);\n    if (match && match[1]) {\n      callid = match[1];\n      console.log('Callid Location\\'dan alındı:', callid);\n    }\n  } else {\n    // Get call file node'undan callid almaya çalış\n    try {\n      callid = $('get call file').first().json.callid;\n      console.log('Callid get call file\\'dan alındı:', callid);\n    } catch (e) {\n      console.log('Get call file\\'dan callid alınamadı:', e.message);\n    }\n  }\n} catch (error) {\n  console.log('callid alınamadı:', error.message);\n}\n\n// callid hala yoksa timestamp ekle\nif (!callid) {\n  callid = 'unknown-' + Date.now();\n  console.log('Uyarı: callid bulunamadı, geçici değer oluşturuldu:', callid);\n}\n\n// callDirection'ı belirle - Key veya Location'dan çıkar\nlet callDirection = 'unknown';\ntry {\n  if (item.json.callDirection) {\n    callDirection = item.json.callDirection;\n  } else if (item.json.Key && item.json.Key.includes('/')) {\n    callDirection = item.json.Key.includes('/inbound/') ? 'inbound' : 'outbound';\n  } else if (item.json.Location) {\n    callDirection = item.json.Location.includes('/inbound/') ? 'inbound' : 'outbound';\n  }\n} catch (error) {\n  console.log('callDirection belirlenemedi:', error.message);\n}\n\n// Dosya yolu oluştur\nconst s3Key = `calls/${callDirection}/${callid}.wav`;\nconsole.log('Oluşturulan S3 dosya yolu:', s3Key);\n\n// Metadata bilgilerini koru\nreturn [\n  {\n    json: {\n      ...item.json,\n      callid: callid, // callid ekle/güncelle\n      callDirection: callDirection,\n      Key: s3Key,\n      s3_uploaded: true,\n      s3_path: `s3://callintech/${s3Key}`\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -180
+      ],
+      "id": "c0ea0f5c-2664-431d-bc6f-1df43491014a",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Binary veriyi ve URL'yi al\nconst item = $input.first();\nconst fileName = item.json.url || \"\";\nlet callDirection = \"\";\n\n// URL içinde inbound veya outbound kelimelerini ara (büyük/küçük harf duyarsız)\nif (fileName.toLowerCase().includes(\"inbound\")) {\n  callDirection = \"inbound\";\n} else if (fileName.toLowerCase().includes(\"outbound\")) {\n  callDirection = \"outbound\";\n} else {\n  // Eğer belirlenemezse varsayılan olarak inbound kabul et\n  callDirection = \"inbound\";\n}\n\n// Tüm binary datayı ve json'ı koru, sadece callDirection ekle\nreturn [\n  {\n    json: { ...item.json, callDirection },\n    binary: item.binary\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1400,
+        -80
+      ],
+      "id": "c496224c-ae9a-455e-a723-133f2c55ec1c",
+      "name": "inbound&outbound"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "outbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b4f35430-27e7-4d66-9682-e21441adaf0c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "outbound"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "59b084a3-bd37-48a6-b9bc-178497cc0dc9",
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "inbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -960,
+        -180
+      ],
+      "id": "1d9ea27a-2e29-41bb-bb14-cb6ca35a41f5",
+      "name": "Switch folder"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/outbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        -280
+      ],
+      "id": "b06d7f86-ac3b-49a3-bb64-48facc6f81a4",
+      "name": "upload S3 outbound",
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/inbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        -80
+      ],
+      "id": "8d5b9a4e-4331-4051-831d-94f51e61a2e5",
+      "name": "upload S3 inbound",
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1840,
+        70
+      ],
+      "id": "2a9526aa-537f-48d6-8641-e78e7205ae1b",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2280,
+        70
+      ],
+      "id": "2848bfad-292f-4788-87a5-118d7f9715de",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET s3_uploaded = true, stt_processed = false, s3_path = '{{ $json.s3_path }}', call_direction = '{{ $json.callDirection }}', recording_url = '{{ $json.Location }}', updated_at = CURRENT_TIMESTAMP WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -300,
+        -180
+      ],
+      "id": "d8ae7fad-2a86-4ef5-b548-30dd695e8198",
+      "name": "Update Calls Status",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\n\nUPDATE public.calls SET s3_uploaded = false, stt_processed = false, s3_path = '{{ $json.s3_path }}', call_direction = '{{  $json.callDirection}}', recording_url = '{{ $json.Location }}', s3_uploaded_error = '{{ $json.s3_uploaded_error }}',updated_at = CURRENT_TIMESTAMP WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -300,
+        95
+      ],
+      "id": "828c8a1c-f14c-4ed9-8cf2-07348d6dc9e2",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        500
+      ],
+      "id": "eeea4e37-a65d-49c8-a1ae-35f5a28817c5",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bcb4182e-6894-4c3f-b060-44090ec15e8a",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1620,
+        -5
+      ],
+      "id": "8a886a40-f346-4400-824c-94e26b63c705",
+      "name": "If has valid url",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b73f10b7-23f5-4084-8f93-04093027edb2",
+              "name": "s3_uploaded_error",
+              "value": "={{ ($json.error.message.match(/The requested URL .*? not found on this server\\./) || [])[0] }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -520,
+        95
+      ],
+      "id": "1832cff6-30fb-4921-ba35-89a336079540",
+      "name": "Set file not found Error"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b73f10b7-23f5-4084-8f93-04093027edb2",
+              "name": "s3_uploaded_error",
+              "value": "={{ ($json.error.message.match(/The requested URL .*? not found on this server\\./) || [])[0] }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -520,
+        -360
+      ],
+      "id": "7643e74f-f37b-4cab-ab23-4dbd6630fec3",
+      "name": "Set S3 Uploaded Error"
+    }
+  ],
+  "connections": {
+    "get call file": {
+      "main": [
+        [
+          {
+            "node": "Switch folder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set file not found Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "inbound&outbound": {
+      "main": [
+        [
+          {
+            "node": "get call file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch folder": {
+      "main": [
+        [
+          {
+            "node": "upload S3 outbound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "upload S3 inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 outbound": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set S3 Uploaded Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 inbound": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set S3 Uploaded Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get calls": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If has valid url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "get calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Update Calls Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Calls Status": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If has valid url": {
+      "main": [
+        [
+          {
+            "node": "inbound&outbound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set file not found Error": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set S3 Uploaded Error": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "billsec": "232",
+          "callid": "112-1748417247.8538",
+          "calltype": 1,
+          "ext": "122",
+          "phn": "022894779041",
+          "url": "https://dwn.ncvav.com/18333486150106/INBOUND-022894779041-20250528-102728-112-1748417247.8538.wav",
+          "processed": false,
+          "s3_uploaded": false,
+          "created_at": "2025-05-28T07:31:27.688Z",
+          "s3_path": null,
+          "call_direction": null,
+          "file_url": null,
+          "updated_at": null,
+          "skip_reason": null,
+          "skip": false
+        }
+      }
+    ]
+  },
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

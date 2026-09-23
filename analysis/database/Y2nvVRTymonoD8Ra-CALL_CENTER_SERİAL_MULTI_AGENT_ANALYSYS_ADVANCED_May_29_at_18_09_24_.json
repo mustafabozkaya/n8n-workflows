@@ -1,0 +1,1551 @@
+{
+  "name": "CALL_CENTER_MULTİ_AGENT_ANALYSİS_ADVANCED (May 29 at 18:09:24)",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b21d639c-1348-45b7-b532-792b53a7b788",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        600
+      ],
+      "id": "67f6b9ab-783b-4835-a016-29e20cf57aa7",
+      "name": "If save succesfull1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET processed = true ,updated_at = '{{ $now }}' WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "id": "ad035768-decf-446c-8c6a-033506019b0d",
+      "name": "Update Call Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        380
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b21d639c-1348-45b7-b532-792b53a7b788",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        1000
+      ],
+      "id": "d40cd849-140f-4ba0-bf93-409af63f0e51",
+      "name": "If save succesfull"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ec181d9-6c8f-4378-88df-1a1e2060d258",
+              "name": "File Name",
+              "value": "={{ $json.callid }}",
+              "type": "string"
+            },
+            {
+              "id": "0cb2b280-c4ba-47e0-b838-bcb6a18aaffb",
+              "name": "conversations",
+              "value": "={{ $json.conversation }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -160,
+        420
+      ],
+      "id": "9ead1d51-7633-493c-95bd-455e8ce91bcf",
+      "name": "Set Transcript   Fields"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-stt-error",
+              "leftValue": "={{ $('Process Conversation').item.json.error }}",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "d9c71a33-0154-48f6-9e98-33be8128626b",
+              "leftValue": "={{ $json.keys().includes(\"callid\", \"conversation\") }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "87d0c131-1dc8-49c3-9f78-0050a0da200e",
+      "name": "IF STT/Conv Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -220,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE skip = TRUE  ORDER BY created_at DESC ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1100,
+        700
+      ],
+      "id": "d840dc20-d790-4605-bff6-1f181c17c40f",
+      "name": "get skipped calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Process single item\nconst item = $input.item.json;\nconst callId = item.callid || 'unknown';\nconst billsec = item.billsec || 0;\n\nconsole.log(`⚠️ Call ${callId} skipped - call duration (billsec: ${billsec})`);\n\nreturn {\n  json: {\n    ...item,\n    skipped: true,\n    skip_reason: 'call duration <= 15 sec'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        900
+      ],
+      "id": "f45aba47-a0de-4367-a027-939841fbb27d",
+      "name": "Log Call Duration < 15 sec",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET processed = true , \"skip\"= {{ $json.skipped }} , skip_reason = '{{ $json.skip_reason }}' , updated_at = '{{ $now}}'  WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -960,
+        900
+      ],
+      "id": "9e8ce369-58d4-454a-b1c7-ce959703382d",
+      "name": "Update Calls Skip",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-billsec",
+              "leftValue": "={{ $json.billsec }}",
+              "rightValue": 15,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1480,
+        240
+      ],
+      "id": "8fad3df6-51bb-4f89-a238-9630f0ec3e0b",
+      "name": "Check Billsec Duration",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Prompt oluştur\n// Conversation verisini al\nlet conversation;\nlet callid_from_input = 'unknown';\ntry {\n  const convNodeOutput = $input.first().json; // Process Conversation'dan gelen veri\n  conversation = convNodeOutput.conversation || [];\n  callid_from_input = convNodeOutput.callid || 'unknown';\n  if (!Array.isArray(conversation)) {\n    console.log('Uyarı: conversation bir array değil');\n    conversation = [];\n  }\n} catch (error) {\n  console.log('Hata (Create Analysis Prompt - conversation):', error.message);\n  conversation = [];\n}\n\n// Prompt oluştur\nconst promptsystem = `\nYou are a call center conversation analyzer.\n\nBelow is a JSON array called \\`conversation\\`, where each item represents a speech block with the following structure:\n{\n  \"speaker\": \"speaker_0\" or \"speaker_1\" or \"unknown\",\n  \"text\": \"spoken words\",\n  \"start\": float (start time in seconds),\n  \"end\": float (end time in seconds),\n  \"conversation_index\": integer (order of conversation)\n}\n\nYour task is to analyze this conversation based on the following criteria. Respond with true, false, or \"unknown\" for boolean questions. For the sale value scale, use an integer from 1 to 5 if a sale occurred, otherwise use 0 or null.\n\nInstructions:\n1.  Determine which speaker is the **call center agent** and which is the **customer**.\n2.  Analyze the **customer's emotional tone** (e.g., calm, angry, excited, confused, etc.).\n3.  Assess overall **conversation sentiment** (positive, negative, neutral).\n4.  Identify the **main topic** (e.g., complaint, sales, technical issue, billing).\n5.  Extract the **most significant term/keyword** (e.g., 'approved', 'canceled', 'offer', 'refund').\n6.  Classify the **general experience** (acceptable, unacceptable, neutral).\n7.  Summarize **customer's experience in one word** (e.g., frustrating, smooth, excellent).\n8.  Was an **email address asked for or provided**?\n9.  Did any **positive comments from the customer lead to or reinforce a sale/commitment**?\n10. Did any **negative comments from the customer prevent or hinder a sale/commitment**?\n11. Was there any **price negotiation**?\n12. Was the **customer addressed politely** (e.g., using their name, polite phrases)?\n13. Did the conversation seem **lighthearted or fun** at any point?\n14. Were the **advantages of the services/products clearly mentioned** to the customer?\n15. Were **competing platforms or services (other than Google's own, if applicable) mentioned**?\n16. Was a **sale or commitment made** by the customer? (successful, unsuccessful, not_applicable)\n17. If a sale was made, **rate its significance or value on a scale of 1 (low) to 5 (high)**.\n18. Was the customer asked if they **knew any of the people who left reviews/comments** (if reviews were discussed)?\n19. Were **advantages of a premium/high-level profile or service tier mentioned**?\n\nIf the conversation array is empty or analysis cannot be performed, return a valid JSON object with all fields set to \"unknown\" or null as appropriate, and include an \"llm_error_message\" field with a short explanation (e.g., \"Insufficient data for analysis\" or \"Empty conversation transcript\").\n\nReturn the result in only this JSON format (ensure valid JSON, no markdown, boolean values as true/false not strings \"true\"/\"false\"):\n\n{\n  \"sentiment\": \"<positive|negative|neutral|unknown>\",\n  \"topic\": \"<conversation_topic|unknown>\",\n  \"significant_term\": \"<most_relevant_keyword|unknown>\",\n  \"general_value\": \"<acceptable|unacceptable|neutral|unknown>\",\n  \"general_experience\": \"<one_word_summary|unknown>\",\n  \"email_inquired\": \"<true|false|unknown>\",\n  \"positive_comment_passed_sale\": \"<true|false|unknown>\",\n  \"negative_comment_passed_sale\": \"<true|false|unknown>\",\n  \"price_negotiated\": \"<true|false|unknown>\",\n  \"customer_addressed_politely\": \"<true|false|unknown>\",\n  \"conversation_fun\": \"<true|false|unknown>\",\n  \"service_advantages_mentioned\": \"<true|false|unknown>\",\n  \"other_platforms_mentioned\": \"<true|false|unknown>\",\n  \"sale_outcome\": \"<successful|unsuccessful|not_applicable|unknown>\",\n  \"sale_value_scale\": \"<integer_0_to_5|null>\",\n  \"asked_if_commenters_known\": \"<true|false|unknown>\",\n  \"high_profile_advantages_mentioned\": \"<true|false|unknown>\",\n  \"llm_error_message\": \"<error_message_if_any_or_null>\"\n}\n`;\n\nconst promptuser = `\n\nHere is the JSON transcript to analyze:\n\n${JSON.stringify(conversation, null, 2)}\n`;\n\n// Sonucu döndür\nreturn [{ json: { ...$input.item.json, promptsys: promptsystem, promtuser : promptuser } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        200
+      ],
+      "id": "148f5e64-5037-4a16-a5b6-4566b9d9af83",
+      "name": "Create Analysis Prompt",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2100,
+        180
+      ],
+      "id": "978c3a00-0c1a-4c78-b0a9-c41e76d5f2f5",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cron tetiklendiğinde başlangıç mesajı\nconst now = new Date().toISOString();\nconsole.log(`🔄 Call Center Analysis Cron started at ${now}`);\n\nreturn [{\n  json: {\n    timestamp: now,\n    message: \"Cron job başlatıldı - işlenmemiş call kayıtları kontrol ediliyor\"\n  }\n}];"
+      },
+      "id": "5b12aa9b-95c7-423b-8464-7abcd76b1fd4",
+      "name": "Cron Start Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1740,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İşlem tamamlandığında log mesajı\nconst item = $input.first();\nconst callId = item.json.callid || $('Prepare S3 Download').item.json.callid || 'unknown';\nconst status = item.json.error ? 'error' : 'success';\n\nif (status === 'success') {\n    console.log(`✅ Call ${callId} processed successfully.`);\n} else {\n    console.log(`⚠️ Call ${callId} processed with error: ${item.json.error_message || item.json.error}`);\n}\n\n// Loop için sinyal döndür\nreturn [{\n  json: {\n    status: status,\n    callid: callId,\n    message: status === 'success' ? \"Kayıt başarıyla işlendi\" : \"Kayıt hata ile işlendi\"\n  }\n}];"
+      },
+      "id": "1ce6fcfc-e78f-4462-98d0-73be32cab9db",
+      "name": "Completion Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pipe_response SET llm_processed = TRUE,  stt_error = '{{$json.error}}' WHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "id": "acb2bea6-e3a1-4454-bb2c-c1ad106e2591",
+      "name": "Update Error Status (STT)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1340,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hata durumunda oluşan verileri işleyen fonksiyon\nconst item = $input.first(); // Bu item IF STT/Conv Error? (True) -> Process Conversation'dan gelir\nlet callId = item.json.callid || 'unknown';\nlet errorMessage = item.json.error || 'Bilinmeyen STT/Conversation işleme hatası';\n\n// Hata bilgisini logla\nconsole.log(`İşleme hatası (STT/Conv): CallID=${callId}, Hata=${errorMessage}`); \n\nreturn [\n  {\n    json: {\n      callid: callId,\n      processed: true, \n      error: true,\n      error_message: errorMessage.substring(0, 250) // Mesajı DB için kısalt\n    }\n  }\n];"
+      },
+      "id": "8f1d387e-5e0d-4f5e-84cb-47686d5a709c",
+      "name": "Process STT Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=transcripts/{{ $json['File Name'] }}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json.conversations || [])}}",
+        "additionalFields": {}
+      },
+      "id": "1aadf230-9064-4ed5-93dc-19dc991925af",
+      "name": "Save Transcript to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        400,
+        420
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Elevanlabs STT'den words değerini al\nlet words = [];\nlet sttError = null;\n\nconst inputItem = $input.first();\nif (inputItem.json.error) {\n  sttError = inputItem.json.error.message || 'ElevenLabs STT bilinmeyen hata';\n  console.log('Hata: elevanlabs STT node hatası:', sttError);\n} else {\n  try {\n    const elevenlabsOutput = inputItem.json;\n    if (elevenlabsOutput && elevenlabsOutput.words && Array.isArray(elevenlabsOutput.words)) {\n      words = elevenlabsOutput.words;\n    } else {\n      sttError = 'Transkripsiyon verisi (words dizisi) bulunamadı veya array değil';\n      console.log('Uyarı:', sttError);\n    }\n  } catch (error) {\n    sttError = 'elevanlabs STT çıktısı parse edilemedi: ' + error.message;\n    console.log('Hata:', sttError);\n  }\n}\n\n// Çağrı ID'sini al\nlet callid = 'unknown';\ntry {\n  callid = $('Prepare S3 Download').item.json.callid || 'unknown';\n} catch (error) {\n  console.log('Uyarı: callid Prepare S3 Download nodeundan alınamadı:', error.message);\n}\n\nif (sttError) {\n  return [\n    {\n      json: {\n        callid: callid,\n        conversation: [],\n        error: sttError // Hata bilgisini sonraki adıma taşı\n      }\n    }\n  ];\n}\n\n// Zaman sırasına göre sırala\nconst sortedWords = words.sort((a, b) => a.start - b.start);\n\nconst conversation = [];\nlet currentSpeaker = null;\nlet currentText = '';\nlet currentStart = null;\nlet currentEnd = null;\nlet conversationIndex = 0;\n\nfor (const word of sortedWords) {\n  const speaker = word.speaker_id === undefined || word.speaker_id === null ? 'unknown' : `speaker_${word.speaker_id}`;\n  const text = word.text || '';\n\n  if (speaker !== currentSpeaker) {\n    if (currentSpeaker !== null && currentText.trim() !== '') {\n      conversation.push({\n        speaker: currentSpeaker,\n        text: currentText.trim(),\n        start: currentStart,\n        end: currentEnd,\n        conversation_index: conversationIndex++\n      });\n    }\n    currentSpeaker = speaker;\n    currentText = text;\n    currentStart = word.start;\n    currentEnd = word.end;\n  } else {\n    currentText += ' ' + text;\n    currentEnd = word.end;\n  }\n}\n\nif (currentSpeaker !== null && currentText.trim() !== '') {\n  conversation.push({\n    speaker: currentSpeaker,\n    text: currentText.trim(),\n    start: currentStart,\n    end: currentEnd,\n    conversation_index: conversationIndex++\n  });\n}\n\nreturn [\n  {\n    json: {\n      callid: callid,\n      conversation: conversation\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        100
+      ],
+      "id": "dadfa513-2e61-435f-bf6e-943a9204a582",
+      "name": "Process Conversation",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "sk_c2314e1c96d7ea53dfe7d2a532fd512c1a9041fdac1edf02"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{$binary.data.mimeType || 'audio/wav'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model_id",
+              "value": "scribe_v1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "tag_audio_events",
+              "value": "true"
+            },
+            {
+              "name": "num_speakers",
+              "value": "2"
+            },
+            {
+              "name": "diarize",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        200
+      ],
+      "id": "b7f8f66e-49eb-43c4-b0ac-09beea02b882",
+      "name": "ElevenLabs STT",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "bucketName": "callintech",
+        "fileKey": "={{ $json.Key }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        200
+      ],
+      "id": "012bb777-9f40-430b-bc1c-ed83d3abf055",
+      "name": "Download S3 File",
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Call bilgilerini al ve S3 path oluştur\nconst item = $input.first();\nconst callData = item.json;\n\n// Log için\nconsole.log('Processing call:', callData.callid);\n\n// S3 key oluştur - call_direction ve callid kullanarak\nlet s3Key = '';\nif (callData.call_direction) {\n  s3Key = `calls/${callData.call_direction.toLowerCase()}/${callData.callid}.wav`; // Ensure direction is lowercase for consistency\n} else if (callData.s3_path) {\n  // Mevcut s3_path'ten key çıkar\n  s3Key = callData.s3_path.replace('s3://callintech/', '');\n} else {\n  // call_direction yoksa ve s3_path yoksa, URL'den çıkarmayı dene (CALL_CENTER_S3_UPLOAD.json'daki mantığa benzer)\n  if (callData.file_url && callData.file_url.toLowerCase().includes(\"inbound\")) {\n    s3Key = `calls/inbound/${callData.callid}.wav`;\n  } else if (callData.file_url && callData.file_url.toLowerCase().includes(\"outbound\")) {\n    s3Key = `calls/outbound/${callData.callid}.wav`;\n  } else {\n    // Varsayılan olarak inbound kabul et veya hata ver\n    console.warn('Call direction could not be determined for S3 key, defaulting to inbound for callid:', callData.callid);\n    s3Key = `calls/inbound/${callData.callid}.wav`; \n  }\n}\n\nconsole.log('S3 Key:', s3Key);\n\nreturn [{\n  json: {\n    ...callData,\n    Key: s3Key\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        120
+      ],
+      "id": "c17008be-4fa5-48ad-ae55-5bd04b71c5e7",
+      "name": "Prepare S3 Download",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1220,
+        100
+      ],
+      "id": "fe0eb5b6-beb0-4501-bf1f-823d9433b280",
+      "name": "Loop Over Calls"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-has-records",
+              "leftValue": "={{ $json }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1640,
+        40
+      ],
+      "id": "11b2ade3-fbfb-449a-90fd-f7707b17667b",
+      "name": "Has Records to Process?",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true  ORDER BY created_at ASC LIMIT 5\nSELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true AND skip = false AND  billsec IS NOT NULL ORDER BY created_at DESC LIMIT 10",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1840,
+        40
+      ],
+      "id": "83a06252-e4b4-4b62-aab4-a23bc8d4ea43",
+      "name": "Get Unprocessed Calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=analysis/{{$json.callid}}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json)}}",
+        "additionalFields": {}
+      },
+      "id": "16dfc82c-28ea-4c14-a8af-23272bdb57fa",
+      "name": "Save Analysis  to S",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        600
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "callid",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        2320,
+        840
+      ],
+      "id": "1d9c706b-4fbc-463a-9029-2c246ccb8a67",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"callid\": \"{{ $('Format LLM Response').item.json.callid }}\",\n  \"transcript_url\": \"https://callintech.s3.us-east-1.amazonaws.com/analysis/{{ $('Format LLM Response').item.json.callid }}.json\"\n\n\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2020,
+        740
+      ],
+      "id": "09169590-4ca0-42bb-85bb-aa105597a1e8",
+      "name": "s3 analysis field"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"callid\": \"{{ $('Set Transcript   Fields').item.json[\"File Name\"] }}\",\n  \"analysis_url\": \"https://callintech.s3.us-east-1.amazonaws.com/analysis/{{ $('Set Transcript   Fields').item.json[\"File Name\"] }}.json\"\n\n\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2020,
+        940
+      ],
+      "id": "dd7eb4de-37e4-4cd7-942c-820e94c6ba34",
+      "name": "s3 transcript field"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Basic LLM Chain çıktısını düzgün JSON'a dönüştür\nconst llmInputItem = $input.first();\nlet output = {};\nlet llmError = null;\n\n// Çağrı ID'sini Process Conversation veya Prepare S3 Download'dan al\nlet callid = 'unknown';\ntry {\n  callid = llmInputItem.json.callid || $('Process Conversation').item.json.callid || $('Prepare S3 Download').item.json.callid || 'unknown'; \n} catch (error) {\n  console.log('CallID bulunamadı (Format LLM Response):', error.message);\n}\n\nif (llmInputItem.json.error) {\n  llmError = llmInputItem.json.error.message || 'LLM chain bilinmeyen hata';\n  console.log('Hata: LLM chain hatası:', llmError);\n  output = {\n    error: llmError,\n    sentiment: null, topic: null, significantterm: null,\n    generalvalue: null, generalexperience: null, sale_outcome: null\n  };\n} else if (llmInputItem.json && llmInputItem.json.text) {\n  let responseText = llmInputItem.json.text;\n\n  // Markdown JSON formatını temizle\n  if (responseText.startsWith('```json')) {\n    responseText = responseText.substring(7, responseText.length - 3).trim();\n  } else if (responseText.startsWith('```')) {\n    responseText = responseText.substring(3, responseText.length - 3).trim();\n  }\n\n  try {\n    output = JSON.parse(responseText);\n\n    // \"unknown\" olan tüm string değerleri null olarak değiştir\n    for (const key in output) {\n      if (output[key] === \"unknown\"  ) {\n        output[key] = null;\n      }\n    }\n\n    if (output.error === null) {\n      delete output.error;\n    }\n\n  } catch (error) {\n    console.log('JSON parse hatası (Format LLM Response):', error.message, 'Raw Text:', responseText);\n    llmError = 'LLM yanıtı JSON parse hatası: ' + error.message;\n    output = {\n      error: llmError,\n      raw_text: responseText,\n      sentiment: null, topic: null, significantterm: null,\n      generalvalue: null, generalexperience: null, sale_outcome: null\n    };\n  }\n} else {\n  llmError = 'LLM chain çıktısı boş veya text alanı yok.';\n  console.log('Hata:', llmError);\n  output = {\n    error: llmError\n  };\n}\n\n// Sonuçları dön\nreturn [{\n  json: {\n    ...output,\n    callid: callid\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        460
+      ],
+      "id": "ea498faa-92f3-4673-923d-0ff00a28e97b",
+      "name": "Format LLM Response",
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        720,
+        120
+      ],
+      "id": "0c70df07-4351-47b5-b33f-01db244d4007",
+      "name": "LLM Analysis Chain",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "pipe_response",
+          "mode": "list",
+          "cachedResultName": "pipe_response"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "calltext": "={{ $('ElevenLabs STT').item.json.text || ($('Process Conversation').item.json.error ? $('Process Conversation').item.json.error : '') }}",
+            "phn": "={{ $('Download S3 File').item.json.phn || '' }}",
+            "calltype": "={{ $('Download S3 File').item.json.calltype || '' }}",
+            "ext": "={{ $('Download S3 File').item.json.ext || '' }}",
+            "response": "={{ $('Format LLM Response').item.json.sentiment }}",
+            "agent": "SCRIBE_V1",
+            "billsec": "={{ $('Download S3 File').item.json.billsec || 0 }}",
+            "note": "={{ JSON.stringify($json) || '' }}",
+            "llm_processed": true,
+            "analysis_s3_url": "={{ $json.analysis_url }}",
+            "transcript_s3_url": "={{ $json.transcript_url }}",
+            "callid": "={{ $json.callid }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "callid",
+              "displayName": "callid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "billsec",
+              "displayName": "billsec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltype",
+              "displayName": "calltype",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ext",
+              "displayName": "ext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phn",
+              "displayName": "phn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltext",
+              "displayName": "calltext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "llm_processed",
+              "displayName": "llm_processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "stt_error",
+              "displayName": "stt_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "transcript_s3_url",
+              "displayName": "transcript_s3_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "analysis_s3_url",
+              "displayName": "analysis_s3_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "llm_error",
+              "displayName": "llm_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2260,
+        560
+      ],
+      "id": "459b5532-032a-449d-82a9-d21e912b7953",
+      "name": "Save to pipe_response1",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        840,
+        880
+      ],
+      "id": "ef038bf9-82c4-4fb6-9e76-f5c3c9a63d3f",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-2025-04-14",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-2025-04-14"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        600,
+        320
+      ],
+      "id": "d3817894-deae-478b-8023-bf0f24c5fd74",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "klDM6WGm77tTw4BE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Create Analysis Prompt').item.json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $('Create Analysis Prompt').item.json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        780,
+        380
+      ],
+      "id": "679bd715-55df-4540-9ff7-890b672db205",
+      "name": "LLM Analysis Chain1",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "630d9a70-cc06-4684-9380-92cd475be370",
+              "leftValue": "={{ $json.text.includes(\"unknown\") }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        120
+      ],
+      "id": "3c6877fd-a799-449e-9fef-22efc305a6d4",
+      "name": "If dont analyse"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "630d9a70-cc06-4684-9380-92cd475be370",
+              "leftValue": "={{ $json.text.includes(\"unknown\") }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        420
+      ],
+      "id": "4d7292ba-9735-4f06-8a2a-6fb2062951b8",
+      "name": "If dont analyse1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Create Analysis Prompt').item.json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $('Create Analysis Prompt').item.json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        880,
+        680
+      ],
+      "id": "3ca8e7e4-bef7-4233-a819-2dadcdd035c0",
+      "name": "LLM Analysis Chain2",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        760,
+        540
+      ],
+      "id": "243c08e2-db7a-4df1-83c2-0483d1bb6be4",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "a26U8RyAWchCEjA1",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.llm_analysis (\n    callid, sentiment, topic, significant_term, general_value,\n    general_experience, email_inquired, positive_comment_passed_sale,\n    negative_comment_passed_sale, price_negotiated, customer_addressed_politely,\n    conversation_fun, service_advantages_mentioned, other_platforms_mentioned,\n    sale_outcome, sale_value_scale, asked_if_commenters_known,\n    high_profile_advantages_mentioned, llm_error_message\n)\nVALUES (\n    '{{ $('Format LLM Response').item.json.callid }}', '{{ $('Format LLM Response').item.json.sentiment }}', '{{ $('Format LLM Response').item.json.topic }}', '{{ $('Format LLM Response').item.json.significant_term }}',\n    '{{ $('Format LLM Response').item.json.general_value }}', '{{ $('Format LLM Response').item.json.general_experience }}', {{ $('Format LLM Response').item.json.email_inquired }},{{ $('Format LLM Response').item.json.positive_comment_passed_sale }},{{ $('Format LLM Response').item.json.negative_comment_passed_sale }},{{ $('Format LLM Response').item.json.price_negotiated }},{{ $('Format LLM Response').item.json.customer_addressed_politely }},{{ $('Format LLM Response').item.json.conversation_fun }},{{ $('Format LLM Response').item.json.service_advantages_mentioned }},{{ $('Format LLM Response').item.json.other_platforms_mentioned }}, '{{ $('Format LLM Response').item.json.sale_outcome }}', {{ $('Format LLM Response').item.json.sale_value_scale }}, {{ $('Format LLM Response').item.json.asked_if_commenters_known }},{{ $('Format LLM Response').item.json.high_profile_advantages_mentioned }}\n  ,'{{ $('Format LLM Response').item.json.llm_error_message }}'\n);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2020,
+        380
+      ],
+      "id": "39eee5e2-b3f1-4921-84af-e898c0f974c4",
+      "name": "Save llm_analysis ",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "If save succesfull1": {
+      "main": [
+        [
+          {
+            "node": "s3 analysis field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Transcript   Fields": {
+      "main": [
+        [
+          {
+            "node": "Save Transcript to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF STT/Conv Error?": {
+      "main": [
+        [
+          {
+            "node": "Set Transcript   Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process STT Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Call Duration < 15 sec": {
+      "main": [
+        [
+          {
+            "node": "Update Calls Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Billsec Duration": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Calls",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Call Duration < 15 sec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Cron Start Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Unprocessed Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Call Status": {
+      "main": [
+        [
+          {
+            "node": "Save llm_analysis ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Error Status (STT)": {
+      "main": [
+        [
+          {
+            "node": "Completion Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process STT Error": {
+      "main": [
+        [
+          {
+            "node": "Update Error Status (STT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Transcript to S3": {
+      "main": [
+        [
+          {
+            "node": "If save succesfull",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Conversation": {
+      "main": [
+        [
+          {
+            "node": "IF STT/Conv Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs STT": {
+      "main": [
+        [
+          {
+            "node": "Process Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download S3 File": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare S3 Download": {
+      "main": [
+        [
+          {
+            "node": "Download S3 File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Completion Handler": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Calls": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Prepare S3 Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Records to Process?": {
+      "main": [
+        [
+          {
+            "node": "Check Billsec Duration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Unprocessed Calls": {
+      "main": [
+        [
+          {
+            "node": "Has Records to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If save succesfull": {
+      "main": [
+        [
+          {
+            "node": "s3 transcript field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analysis  to S": {
+      "main": [
+        [
+          {
+            "node": "If save succesfull1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "s3 analysis field": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "s3 transcript field": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis  to S",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Call Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain": {
+      "main": [
+        [
+          {
+            "node": "If dont analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Save to pipe_response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to pipe_response1": {
+      "main": [
+        [
+          {
+            "node": "Completion Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Calls Skip": {
+      "main": [
+        []
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If dont analyse": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Analysis Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain1": {
+      "main": [
+        [
+          {
+            "node": "If dont analyse1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If dont analyse1": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Analysis Chain2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain2": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save llm_analysis ": {
+      "main": [
+        [
+          {
+            "node": "Completion Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

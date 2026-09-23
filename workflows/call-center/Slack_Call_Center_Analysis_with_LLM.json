@@ -1,0 +1,624 @@
+{
+  "name": "Slack Call Center Analysis with LLM",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-analysis-llm",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1800,
+        300
+      ],
+      "id": "webhook-trigger-001",
+      "name": "Slack Webhook Trigger",
+      "webhookId": "call-analysis-llm-webhook"
+    },
+    {
+      "parameters": {
+        "url": "https://slack.com/api/files.get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "C01XXXXXXXX"
+            },
+            {
+              "name": "count",
+              "value": "10"
+            }
+          ]
+        },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer xoxb-your-token"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1560,
+        300
+      ],
+      "id": "slack-files-001",
+      "name": "Get Slack Files",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "slack-http-auth-id",
+          "name": "Slack HTTP Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-audio-files",
+              "leftValue": "={{ $json.files }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1320,
+        300
+      ],
+      "id": "check-audio-files-001",
+      "name": "Has Audio Files?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $input.first().json.files;\n\nif (!files || files.length === 0) {\n  return [{ json: { audioFiles: [], error: 'No files found' } }];\n}\n\nconst audioFiles = files.filter(file => {\n  const mimeType = file.mimetype || '';\n  return mimeType.includes('audio') || \n         mimeType.includes('octet-stream') ||\n         file.name?.toLowerCase().endsWith('.wav') ||\n         file.name?.toLowerCase().endsWith('.mp3') ||\n         file.name?.toLowerCase().endsWith('.m4a') ||\n         file.name?.toLowerCase().endsWith('.ogg');\n});\n\nif (audioFiles.length > 0) {\n  const file = audioFiles[0];\n  const callid = `slack-${file.id}-${Date.now()}`;\n  return [{\n    json: {\n      fileId: file.id,\n      filename: file.name,\n      urlPrivate: file.url_private,\n      mimeType: file.mimetype,\n      timestamp: file.created,\n      user: file.user,\n      callid: callid\n    }\n  }];\n}\n\nreturn [{ json: { audioFiles: [], error: 'No audio files found' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        300
+      ],
+      "id": "filter-audio-001",
+      "name": "Filter Audio Files"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.urlPrivate }}",
+        "method": "GET",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer xoxb-your-token"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -840,
+        300
+      ],
+      "id": "download-audio-001",
+      "name": "Download Audio from Slack",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-download-auth-id",
+          "name": "Slack Download Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "sendHeaders": true,
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model_id",
+              "value": "scribe_v1"
+            },
+            {
+              "name": "diarize",
+              "value": "true"
+            },
+            {
+              "name": "num_speakers",
+              "value": "2"
+            },
+            {
+              "name": "tag_audio_events",
+              "value": "true"
+            }
+          ]
+        },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "sk-your-elevenlabs-key"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        300
+      ],
+      "id": "elevenlabs-stt-001",
+      "name": "ElevenLabs STT",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-auth-id",
+          "name": "ElevenLabs Auth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "let words = [];\nlet sttError = null;\n\nconst inputItem = $input.first();\nif (inputItem.json.error) {\n  sttError = inputItem.json.error.message || 'ElevenLabs STT unknown error';\n  console.log('Error: ElevenLabs STT node error:', sttError);\n} else {\n  try {\n    const elevenlabsOutput = inputItem.json;\n    if (elevenlabsOutput && elevenlabsOutput.words && Array.isArray(elevenlabsOutput.words)) {\n      words = elevenlabsOutput.words;\n    } else {\n      sttError = 'Transcription data (words array) not found or not an array';\n      console.log('Warning:', sttError);\n    }\n  } catch (error) {\n    sttError = 'ElevenLabs STT output could not be parsed: ' + error.message;\n    console.log('Error:', sttError);\n  }\n}\n\nlet callid = 'unknown';\ntry {\n  callid = $('Filter Audio Files').item.json.callid || 'unknown';\n} catch (error) {\n  console.log('Warning: callid could not be retrieved from Filter Audio Files:', error.message);\n}\n\nif (sttError) {\n  return [\n    {\n      json: {\n        callid: callid,\n        conversation: [],\n        error: sttError\n      }\n    }\n  ];\n}\n\nconst sortedWords = words.sort((a, b) => a.start - b.start);\n\nconst conversation = [];\nlet currentSpeaker = null;\nlet currentText = '';\nlet currentStart = null;\nlet currentEnd = null;\nlet conversationIndex = 0;\n\nfor (const word of sortedWords) {\n  const speaker = word.speaker_id === undefined || word.speaker_id === null ? 'unknown' : `speaker_${word.speaker_id}`;\n  const text = word.text || '';\n\n  if (speaker !== currentSpeaker) {\n    if (currentSpeaker !== null && currentText.trim() !== '') {\n      conversation.push({\n        speaker: currentSpeaker,\n        text: currentText.trim(),\n        start: currentStart,\n        end: currentEnd,\n        conversation_index: conversationIndex++\n      });\n    }\n    currentSpeaker = speaker;\n    currentText = text;\n    currentStart = word.start;\n    currentEnd = word.end;\n  } else {\n    currentText += ' ' + text;\n    currentEnd = word.end;\n  }\n}\n\nif (currentText.trim() !== '') {\n  conversation.push({\n    speaker: currentSpeaker,\n    text: currentText.trim(),\n    start: currentStart,\n    end: currentEnd,\n    conversation_index: conversationIndex++\n  });\n}\n\nreturn [\n  {\n    json: {\n      callid: callid,\n      conversation: conversation,\n      wordCount: words.length,\n      speakerCount: [...new Set(words.map(w => `speaker_${w.speaker_id}`))].length\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        300
+      ],
+      "id": "process-conversation-001",
+      "name": "Process Conversation",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ec181d9-6c8f-4378-88df-1a1e2060d258",
+              "name": "File Name",
+              "value": "={{ $json.callid }}",
+              "type": "string"
+            },
+            {
+              "id": "0cb2b280-c4ba-47e0-b838-bcb6a18aaffb",
+              "name": "conversations",
+              "value": "={{ $json.conversation }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -120,
+        300
+      ],
+      "id": "set-transcript-001",
+      "name": "Set Transcript Fields"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=transcripts/{{ $json['File Name'] }}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json.conversations || [])}}",
+        "additionalFields": {}
+      },
+      "id": "save-transcript-001",
+      "name": "Save Transcript to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        120,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "let conversation;\nlet callid_from_input = 'unknown';\ntry {\n  const convNodeOutput = $input.first().json;\n  conversation = convNodeOutput.conversation || [];\n  callid_from_input = convNodeOutput.callid || 'unknown';\n  if (!Array.isArray(conversation)) {\n    console.log('Warning: conversation is not an array');\n    conversation = [];\n  }\n} catch (error) {\n  console.log('Error (Create Analysis Prompt - conversation):', error.message);\n  conversation = [];\n}\n\nconst promptsystem = `You are a call center conversation analyzer.\n\nBelow is a JSON array called conversation, where each item represents a speech block with the following structure:\n{\n  \"speaker\": \"speaker_0\" or \"speaker_1\" or \"unknown\",\n  \"text\": \"spoken words\",\n  \"start\": float (start time in seconds),\n  \"end\": float (end time in seconds),\n  \"conversation_index\": integer (order of conversation)\n}\n\nYour task is to analyze this conversation based on the following criteria. Respond with true, false, or \"unknown\" for boolean questions. For the sale value scale, use an integer from 1 to 5 if a sale occurred, otherwise use 0 or null.\n\nInstructions:\n1. Determine which speaker is the call center agent and which is the customer.\n2. Analyze the customer's emotional tone (e.g., calm, angry, excited, confused, etc.).\n3. Assess overall conversation sentiment (positive, negative, neutral).\n4. Identify the main topic (e.g., complaint, sales, technical issue, billing).\n5. Extract the most significant term/keyword (e.g., 'approved', 'canceled', 'offer', 'refund').\n6. Classify the general experience (acceptable, unacceptable, neutral).\n7. Summarize the customer's experience in one word (e.g., frustrating, smooth, excellent).\n8. Was an email address asked for or provided?\n9. Did any positive comments from the customer pass the sale?\n10. Did any negative comments from the customer pass the sale?\n11. Was the price negotiated?\n12. Was the customer addressed politely?\n13. Was the conversation fun (humor, pleasant exchange)?\n14. Were service advantages mentioned?\n15. Were other platforms mentioned?\n16. What was the sale outcome?\n17. Sale value scale (1-5 if sale occurred, 0 or null otherwise).\n18. Did the agent ask if commenters were known?\n19. Were high profile advantages mentioned?\n\nRespond with valid JSON only. Use this exact schema:\n{\n  \"sentiment\": \"positive/negative/neutral\",\n  \"topic\": \"main topic\",\n  \"significant_term\": \"key term\",\n  \"general_value\": \"acceptable/unacceptable/neutral\",\n  \"general_experience\": \"one word\",\n  \"email_inquired\": true/false/unknown,\n  \"positive_comment_passed_sale\": true/false/unknown,\n  \"negative_comment_passed_sale\": true/false/unknown,\n  \"price_negotiated\": true/false/unknown,\n  \"customer_addressed_politely\": true/false/unknown,\n  \"conversation_fun\": true/false/unknown,\n  \"service_advantages_mentioned\": true/false/unknown,\n  \"other_platforms_mentioned\": true/false/unknown,\n  \"sale_outcome\": \"sold/not sold/unknown\",\n  \"sale_value_scale\": 0-5 or null,\n  \"asked_if_commenters_known\": true/false/unknown,\n  \"high_profile_advantages_mentioned\": true/false/unknown\n}\n`;\n\nconst formattedConversation = conversation.map(conv => \n  `[${conv.speaker}]: ${conv.text}`\n).join('\\n');\n\nreturn [{\n  json: {\n    callid: callid_from_input,\n    promptsys: promptsystem,\n    promtuser: `Analyze this call conversation:\\n\\n${formattedConversation}\\n\\nProvide the analysis in valid JSON format matching the schema above.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        100
+      ],
+      "id": "create-prompt-001",
+      "name": "Create Analysis Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        120,
+        100
+      ],
+      "id": "llm-chain-001",
+      "name": "LLM Analysis Chain",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        360,
+        -40
+      ],
+      "id": "gemini-model-001",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "a26U8RyAWchCEjA1",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmInputItem = $input.first();\nlet output = {};\nlet llmError = null;\n\nconst normalizeValue = (val) => {\n  return (val === 'unknown' || val === undefined) ? null : val;\n};\n\nconst defaultFields = {\n  sentiment: null,\n  topic: null,\n  significant_term: null,\n  general_value: null,\n  general_experience: null,\n  email_inquired: null,\n  positive_comment_passed_sale: null,\n  negative_comment_passed_sale: null,\n  price_negotiated: null,\n  customer_addressed_politely: null,\n  conversation_fun: null,\n  service_advantages_mentioned: null,\n  other_platforms_mentioned: null,\n  sale_outcome: null,\n  sale_value_scale: null,\n  asked_if_commenters_known: null,\n  high_profile_advantages_mentioned: null,\n  llm_error_message: null\n};\n\nlet callid = 'unknown';\ntry {\n  callid = $('Process Conversation').item.json.callid || 'unknown';\n} catch (error) {\n  console.log('CallID not found:', error.message);\n}\n\nif (llmInputItem.json.error) {\n  llmError = llmInputItem.json.error.message || 'LLM chain unknown error';\n  console.log('LLM Error:', llmError);\n  output = {\n    ...defaultFields,\n    llm_error_message: llmError\n  };\n} else if (llmInputItem.json && llmInputItem.json.text) {\n  let responseText = llmInputItem.json.text;\n\n  if (responseText.startsWith('```json')) {\n    responseText = responseText.slice(7).trim();\n    if (responseText.endsWith('```')) {\n      responseText = responseText.slice(0, -3).trim();\n    }\n  } else if (responseText.startsWith('```')) {\n    responseText = responseText.slice(3).trim();\n    if (responseText.endsWith('```')) {\n      responseText = responseText.slice(0, -3).trim();\n    }\n  }\n\n  try {\n    const parsed = JSON.parse(responseText);\n    output = {\n      sentiment: normalizeValue(parsed.sentiment) || defaultFields.sentiment,\n      topic: normalizeValue(parsed.topic) || defaultFields.topic,\n      significant_term: normalizeValue(parsed.significant_term) || defaultFields.significant_term,\n      general_value: normalizeValue(parsed.general_value) || defaultFields.general_value,\n      general_experience: normalizeValue(parsed.general_experience) || defaultFields.general_experience,\n      email_inquired: normalizeValue(parsed.email_inquired) || defaultFields.email_inquired,\n      positive_comment_passed_sale: normalizeValue(parsed.positive_comment_passed_sale) || defaultFields.positive_comment_passed_sale,\n      negative_comment_passed_sale: normalizeValue(parsed.negative_comment_passed_sale) || defaultFields.negative_comment_passed_sale,\n      price_negotiated: normalizeValue(parsed.price_negotiated) || defaultFields.price_negotiated,\n      customer_addressed_politely: normalizeValue(parsed.customer_addressed_politely) || defaultFields.customer_addressed_politely,\n      conversation_fun: normalizeValue(parsed.conversation_fun) || defaultFields.conversation_fun,\n      service_advantages_mentioned: normalizeValue(parsed.service_advantages_mentioned) || defaultFields.service_advantages_mentioned,\n      other_platforms_mentioned: normalizeValue(parsed.other_platforms_mentioned) || defaultFields.other_platforms_mentioned,\n      sale_outcome: normalizeValue(parsed.sale_outcome) || defaultFields.sale_outcome,\n      sale_value_scale: parsed.sale_value_scale !== undefined && parsed.sale_value_scale !== null ? parseInt(parsed.sale_value_scale) : defaultFields.sale_value_scale,\n      asked_if_commenters_known: normalizeValue(parsed.asked_if_commenters_known) || defaultFields.asked_if_commenters_known,\n      high_profile_advantages_mentioned: normalizeValue(parsed.high_profile_advantages_mentioned) || defaultFields.high_profile_advantages_mentioned\n    };\n  } catch (parseError) {\n    console.log('JSON parse error:', parseError.message);\n    llmError = 'Failed to parse LLM JSON response: ' + parseError.message;\n    output = {\n      ...defaultFields,\n      llm_error_message: llmError\n    };\n  }\n}\n\nreturn [{\n  json: {\n    callid: callid,\n    ...output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        100
+      ],
+      "id": "format-llm-response-001",
+      "name": "Format LLM Response",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=analysis/{{$json.callid}}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json)}}",
+        "additionalFields": {}
+      },
+      "id": "save-analysis-001",
+      "name": "Save Analysis to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ],
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst output = $input.first().json;\n\nconst sentimentEmoji = {\n  'positive': '😊',\n  'negative': '😞',\n  'neutral': '😐'\n};\n\nconst saleOutcomeEmoji = {\n  'sold': '✅',\n  'not sold': '❌',\n  'unknown': '❓'\n};\n\nconst formatBoolean = (val) => {\n  if (val === true) return '✓';\n  if (val === false) return '✗';\n  return '❓';\n};\n\nreturn [{\n  json: {\n    callid: item.callid,\n    sentiment_emoji: sentimentEmoji[output.sentiment?.toLowerCase()] || '',\n    sale_outcome_emoji: saleOutcomeEmoji[output.sale_outcome?.toLowerCase()] || '',\n    email_inquired: formatBoolean(output.email_inquired),\n    price_negotiated: formatBoolean(output.price_negotiated),\n    customer_addressed_politely: formatBoolean(output.customer_addressed_politely),\n    conversation_fun: formatBoolean(output.conversation_fun),\n    service_advantages_mentioned: formatBoolean(output.service_advantages_mentioned),\n    positive_comment_passed_sale: formatBoolean(output.positive_comment_passed_sale),\n    negative_comment_passed_sale: formatBoolean(output.negative_comment_passed_sale),\n    ...output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        300
+      ],
+      "id": "format-slack-message-001",
+      "name": "Format Slack Message"
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/REPLACE_WITH_YOUR_WEBHOOKP",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=🎧 *Call Analysis Complete*\n\n*📋 Call ID:* {{ $json.callid }}\n\n*🎯 Topic:* {{ $json.topic }}\n*💭 Sentiment:* {{ $json.sentiment }} {{ $json.sentiment_emoji }}\n*⚡ Significant Term:* {{ $json.significant_term }}\n*📊 General Experience:* {{ $json.general_experience }}\n*💰 Sale Outcome:* {{ $json.sale_outcome }} {{ $json.sale_outcome_emoji }}\n*📈 Sale Value Scale:* {{ $json.sale_value_scale || 'N/A' }}/5\n\n*✅ Key Indicators:*\n• Email Inquired: {{ $json.email_inquired }}\n• Price Negotiated: {{ $json.price_negotiated }}\n• Customer Addressed Politely: {{ $json.customer_addressed_politely }}\n• Conversation Fun: {{ $json.conversation_fun }}\n• Service Advantages Mentioned: {{ $json.service_advantages_mentioned }}\n• Positive Comment Passed Sale: {{ $json.positive_comment_passed_sale }}\n• Negative Comment Passed Sale: {{ $json.negative_comment_passed_sale }}\n\n*📁 Analysis File:* https://callintech.s3.us-east-1.amazonaws.com/analysis/{{ $json.callid }}.json\n\n*📄 Transcript File:* https://callintech.s3.us-east-1.amazonaws.com/transcripts/{{ $json.callid }}.json"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        300
+      ],
+      "id": "send-analysis-slack-001",
+      "name": "Send Analysis to Slack"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error || 'Unknown error occurred';\n\nreturn [{\n  json: {\n    text: `❌ *Call Analysis Failed*\n\nAn error occurred while analyzing the call recording:\n\n\\`\\`\\`${error}\\`\\`\\`\n\nPlease try again or contact support.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1320,
+        500
+      ],
+      "id": "error-handler-001",
+      "name": "Handle No Files Error"
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/REPLACE_WITH_YOUR_WEBHOOKP",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=❌ *Call Analysis Failed*\n\nAn error occurred while processing the audio file:\n\n```{{ $json.error }}```\n\nPlease check the file format and try again."
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1080,
+        500
+      ],
+      "id": "send-error-slack-001",
+      "name": "Send Error to Slack"
+    }
+  ],
+  "connections": {
+    "Slack Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Slack Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Slack Files": {
+      "main": [
+        [
+          {
+            "node": "Has Audio Files?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Audio Files?": {
+      "main": [
+        [
+          {
+            "node": "Filter Audio Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle No Files Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Audio Files": {
+      "main": [
+        [
+          {
+            "node": "Download Audio from Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio from Slack": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs STT": {
+      "main": [
+        [
+          {
+            "node": "Process Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Conversation": {
+      "main": [
+        [
+          {
+            "node": "Set Transcript Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Transcript Fields": {
+      "main": [
+        [
+          {
+            "node": "Save Transcript to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analysis to S3": {
+      "main": [
+        [
+          {
+            "node": "Format Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Send Analysis to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle No Files Error": {
+      "main": [
+        [
+          {
+            "node": "Send Error to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

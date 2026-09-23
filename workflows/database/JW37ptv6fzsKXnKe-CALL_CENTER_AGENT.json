@@ -1,0 +1,1080 @@
+{
+  "name": "CALL_CENTER_AGENT",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "sk_3e0e1693a02fbf9d2339efc6c30c77b2ad0f7eb4ccecdc7c"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{$binary.data.mimeType || 'audio/wav'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model_id",
+              "value": "scribe_v1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "tag_audio_events",
+              "value": "true"
+            },
+            {
+              "name": "num_speakers",
+              "value": "2"
+            },
+            {
+              "name": "diarize",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7880,
+        360
+      ],
+      "id": "89216066-0cd8-4498-9859-ad1e9ab8d028",
+      "name": "elevanlabs STT",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE processed = false AND  s3_uploaded= false limit 10",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5500,
+        320
+      ],
+      "id": "ae0466c7-eb8d-4121-a803-4d0f4f6165ba",
+      "name": "get calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6660,
+        240
+      ],
+      "id": "17c4b0be-abe2-48a0-9f11-d425df9267c6",
+      "name": "get call file",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        9000,
+        0
+      ],
+      "id": "29f1149e-aa98-4d4f-a4b3-1fc459fd2c26",
+      "name": "Basic LLM Chain",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        8900,
+        180
+      ],
+      "id": "586dc31f-6eac-432b-bc33-e96f37aed5ff",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GCdgBd60R6sP7ZxN",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bcb4182e-6894-4c3f-b060-44090ec15e8a",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6580,
+        480
+      ],
+      "id": "8b54f6f7-9b80-4277-9e97-004deb871391",
+      "name": "If",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "getAll",
+        "bucketName": "callintech",
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        7440,
+        1020
+      ],
+      "id": "e9a8d1f1-40fc-4da6-a8ae-92e43fe4d15c",
+      "name": "AWS S3",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Her zaman bir item dön, böylece her dosya için işlem devam eder\nconst item = $input.first();\n\n// Gelen veriyi kontrol et\nconsole.log('Code noduna gelen veri:', JSON.stringify(item.json, null, 2));\n\n// callid değerini doğru şekilde al\nlet callid = '';\ntry {\n  // Farklı kaynaklardan callid bulmaya çalış\n  if (item.json.callid) {\n    callid = item.json.callid;\n    console.log('Callid doğrudan json\\'dan alındı:', callid);\n  } else if (item.json.Key && item.json.Key.includes('/')) {\n    // Key'den callid çıkar (calls/outbound/CALLID.wav)\n    const keyParts = item.json.Key.split('/');\n    const lastPart = keyParts[keyParts.length - 1];\n    callid = lastPart.split('.wav')[0]; // .wav uzantısını kaldır, diğer noktaları koru\n    console.log('Callid key\\'den alındı:', callid);\n  } else if (item.json.Location) {\n    // URL'den callid çıkar - tüm callid'yi koru (.1.1 gibi kısımlar dahil)\n    const match = item.json.Location.match(/\\/([\\-0-9.]+)\\.wav/);\n    if (match && match[1]) {\n      callid = match[1];\n      console.log('Callid Location\\'dan alındı:', callid);\n    }\n  } else {\n    // Get call file node'undan callid almaya çalış\n    try {\n      callid = $('get call file').first().json.callid;\n      console.log('Callid get call file\\'dan alındı:', callid);\n    } catch (e) {\n      console.log('Get call file\\'dan callid alınamadı:', e.message);\n    }\n  }\n} catch (error) {\n  console.log('callid alınamadı:', error.message);\n}\n\n// callid hala yoksa timestamp ekle\nif (!callid) {\n  callid = 'unknown-' + Date.now();\n  console.log('Uyarı: callid bulunamadı, geçici değer oluşturuldu:', callid);\n}\n\n// callDirection'ı belirle - Key veya Location'dan çıkar\nlet callDirection = 'unknown';\ntry {\n  if (item.json.callDirection) {\n    callDirection = item.json.callDirection;\n  } else if (item.json.Key && item.json.Key.includes('/')) {\n    callDirection = item.json.Key.includes('/inbound/') ? 'inbound' : 'outbound';\n  } else if (item.json.Location) {\n    callDirection = item.json.Location.includes('/inbound/') ? 'inbound' : 'outbound';\n  }\n} catch (error) {\n  console.log('callDirection belirlenemedi:', error.message);\n}\n\n// Dosya yolu oluştur\nconst s3Key = `calls/${callDirection}/${callid}.wav`;\nconsole.log('Oluşturulan S3 dosya yolu:', s3Key);\n\n// Metadata bilgilerini koru\nreturn [\n  {\n    json: {\n      ...item.json,\n      callid: callid, // callid ekle/güncelle\n      callDirection: callDirection,\n      Key: s3Key,\n      s3_uploaded: true,\n      s3_path: `s3://callintech/${s3Key}`\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7520,
+        380
+      ],
+      "id": "668e7e97-f93e-49e8-b99d-91ab5c1b311f",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "pipe_response",
+          "mode": "list",
+          "cachedResultName": "pipe_response"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "calltext": "={{ $('elevanlabs STT').item.json.text || '' }}",
+            "phn": "={{ $('get call file').item.json.phn || '' }}",
+            "calltype": "={{ $('get call file').item.json.calltype || '' }}",
+            "ext": "={{ $('get call file').item.json.ext || '' }}",
+            "response": "={{ $('Format LLM Response').item.json.sentiment || 'unknown' }}",
+            "agent": "STRİPE_V1",
+            "billsec": "={{ $('get call file').item.json.billsec || 0 }}",
+            "call_id": "={{ $json.callid || $('get call file').item.json.callid || '' }}",
+            "s3_uploaded": true,
+            "note": "={{ JSON.stringify($('Format LLM Response').item.json) || '' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "call_id",
+              "displayName": "call_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "billsec",
+              "displayName": "billsec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltype",
+              "displayName": "calltype",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ext",
+              "displayName": "ext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phn",
+              "displayName": "phn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calltext",
+              "displayName": "calltext",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "s3_uploaded",
+              "displayName": "s3_uploaded",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        8680,
+        480
+      ],
+      "id": "c58d5351-2e76-4100-9888-db9fdba82242",
+      "name": "postgre kaydet",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Elevanlabs STT'den words değerini al\nlet words = [];\ntry {\n  const elevanlabsOutput = $('elevanlabs STT').first().json;\n  if (elevanlabsOutput && elevanlabsOutput.words && Array.isArray(elevanlabsOutput.words)) {\n    words = elevanlabsOutput.words;\n  } else {\n    console.log('Uyarı: elevanlabs STT çıktısında words dizisi bulunamadı veya array değil');\n  }\n} catch (error) {\n  console.log('Hata: elevanlabs STT çıktısı alınamadı:', error.message);\n}\n\n// Çağrı ID'sini al\nlet callid = 'unknown';\ntry {\n  callid = $('get call file').first().json.callid || 'unknown';\n} catch (error) {\n  console.log('Uyarı: callid alınamadı:', error.message);\n}\n\n// Words dizisi boşsa boş sonuç döndür\nif (!words.length) {\n  return [\n    {\n      json: {\n        callid: callid,\n        conversation: [],\n        error: 'Transkripsiyon verisi bulunamadı'\n      }\n    }\n  ];\n}\n\n// Zaman sırasına göre sırala\nconst sortedWords = words.sort((a, b) => a.start - b.start);\n\nconst conversation = [];\nlet currentSpeaker = null;\nlet currentText = '';\nlet currentStart = null;\nlet currentEnd = null;\nlet conversationIndex = 0;\n\nfor (const word of sortedWords) {\n  const speaker = word.speaker_id || 'unknown';\n  const text = word.text || '';\n\n  if (speaker !== currentSpeaker) {\n    if (currentSpeaker !== null) {\n      conversation.push({\n        speaker: currentSpeaker,\n        text: currentText.trim(),\n        start: currentStart,\n        end: currentEnd,\n        conversation_index: conversationIndex++\n      });\n    }\n\n    // Yeni konuşmacı başlat\n    currentSpeaker = speaker;\n    currentText = text;\n    currentStart = word.start;\n    currentEnd = word.end;\n  } else {\n    currentText += ' ' + text;\n    currentEnd = word.end;\n  }\n}\n\n// Son bloğu ekle\nif (currentText.trim()) {\n  conversation.push({\n    speaker: currentSpeaker,\n    text: currentText.trim(),\n    start: currentStart,\n    end: currentEnd,\n    conversation_index: conversationIndex++\n  });\n}\n\nreturn [\n  {\n    json: {\n      callid: callid,\n      conversation: conversation\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8040,
+        140
+      ],
+      "id": "dcdb06ce-8c45-47ae-91a6-deb0e4980014",
+      "name": "get conversation",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        8460,
+        440
+      ],
+      "id": "bb84ddd8-23e8-4435-9a18-30d9f4c3d67d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Conversation verisini al\nlet conversation;\ntry {\n  conversation = $json.conversation || [];\n  if (!Array.isArray(conversation)) {\n    console.log('Uyarı: conversation bir array değil');\n    conversation = [];\n  }\n} catch (error) {\n  console.log('Hata:', error.message);\n  conversation = [];\n}\n\n// Prompt oluştur\nconst prompt = `\nYou are a call center conversation analyzer.\n\nBelow is a JSON array called \\`conversation\\`, where each item represents a speech block with the following structure:\n{\n  \"speaker\": \"speaker_0\" or \"speaker_1\",\n  \"text\": \"spoken words\",\n  \"start\": float (start time in seconds),\n  \"end\": float (end time in seconds),\n  \"conversation_index\": integer (order of conversation)\n}\n\nYour task is to analyze this conversation based on the following criteria:\n\nInstructions:\n1. Determine which speaker is the **call center agent** and which is the **customer**, based on tone, speaking patterns, and context.\n2. Analyze the **customer's emotional tone** throughout the conversation (e.g., calm, angry, excited, confused, etc.).\n3. Assess whether the overall **conversation sentiment** is **positive** or **negative**.\n4. Identify the **main topic** of the conversation (e.g., complaint, sales, technical issue, billing).\n5. Extract the **most significant term** (keyword) that might indicate an important event (e.g., 'approved', 'canceled', 'offer', 'refund').\n6. Based on the overall tone and flow, classify the **general experience** as **acceptable**, **unacceptable**, or **neutral**.\n7. Summarize the **customer's experience in one word** (e.g., frustrating, smooth, unclear, excellent, disappointing).\n8. Determine whether a **sale or commitment** was made by the customer. Return as one of:\n   - \"successful\" if the customer agreed or committed to the offer\n   - \"unsuccessful\" if the customer clearly declined or rejected the offer\n   - \"not_applicable\" if the conversation is not related to a sale\n\nIf the analysis cannot be performed due to insufficient or ambiguous data, return a valid JSON object with all fields set to null and include an \"error\" field with a short explanation (5–6 words).\n\nReturn the result in only this JSON format:\n\n{\n  \"sentiment\": \"<positive|negative>\",\n  \"topic\": \"<conversation_topic>\",\n  \"significantterm\": \"<most_relevant_keyword>\",\n  \"generalvalue\": \"<acceptable|unacceptable|neutral>\",\n  \"generalexperience\": \"<one_word_summary_of_customer_experience>\",\n  \"sale_outcome\": \"<successful|unsuccessful|not_applicable>\"\n}\n\nHere is the JSON transcript to analyze:\n\n${JSON.stringify(conversation, null, 2)}\n`;\n\n// Sonucu döndür\nreturn [{ prompt }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8320,
+        120
+      ],
+      "id": "2ed5b00b-d746-4cf8-a399-a325dcae3a65",
+      "name": "parse Json To Promt",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Binary veriyi ve URL'yi al\nconst item = $input.first();\nconst fileName = item.json.url || \"\";\nlet callDirection = \"\";\n\n// URL içinde inbound veya outbound kelimelerini ara (büyük/küçük harf duyarsız)\nif (fileName.toLowerCase().includes(\"inbound\")) {\n  callDirection = \"inbound\";\n} else if (fileName.toLowerCase().includes(\"outbound\")) {\n  callDirection = \"outbound\";\n} else {\n  // Eğer belirlenemezse varsayılan olarak inbound kabul et\n  callDirection = \"inbound\";\n}\n\n// Tüm binary datayı ve json'ı koru, sadece callDirection ekle\nreturn [\n  {\n    json: { ...item.json, callDirection },\n    binary: item.binary\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        540
+      ],
+      "id": "5fb4d752-a737-4c15-acf8-014830397d58",
+      "name": "inbound&outbound"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "outbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b4f35430-27e7-4d66-9682-e21441adaf0c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "outbound"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "59b084a3-bd37-48a6-b9bc-178497cc0dc9",
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "inbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        6980,
+        820
+      ],
+      "id": "3d3e42ba-5354-42ff-bbe9-b818194f0ffc",
+      "name": "Switch folder"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/outbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        7440,
+        600
+      ],
+      "id": "a2687c89-d3e1-4d99-9687-481f0f8e9eeb",
+      "name": "upload S3 outbound",
+      "alwaysOutputData": true,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/inbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        7440,
+        800
+      ],
+      "id": "56338e96-5ff0-4655-a78e-bba9f2e1a089",
+      "name": "upload S3 inbound",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=transcripts/{{$json[\"callid\"]}}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json.conversation || [])}}",
+        "additionalFields": {}
+      },
+      "id": "b688da72-36fc-49e7-9c3d-55a0820f77e3",
+      "name": "Save Transcript to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        8220,
+        260
+      ],
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE public.calls SET processed = true, s3_uploaded = true WHERE callid = '{{$('get call file').item.json.callid}}'",
+        "options": {}
+      },
+      "id": "e9061b1c-2d38-46eb-8991-b5a7ba450aee",
+      "name": "Update Call Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        8860,
+        520
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hata durumunda oluşan verileri işleyen fonksiyon\nconst item = $input.first();\nconst callId = item.json.callid || 'unknown';\n\n// Hata bilgisini logla\nconsole.log(`İşleme hatası: CallID=${callId}, Hata=${JSON.stringify(item.json.error || 'Bilinmeyen hata')}`); \n\n// Durumu hatalı olarak işaretle ama işlenmiş say\nreturn [\n  {\n    json: {\n      callid: callId,\n      processed: true,\n      error: true,\n      error_message: 'Speech-to-text işlemi sırasında hata oluştu'\n    }\n  }\n];"
+      },
+      "id": "df539d8a-cea5-4fb5-8a67-c3d9003129c4",
+      "name": "Process Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8060,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE public.calls SET processed = true, error = true WHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "id": "88ab52a6-046d-4113-ae1a-46433698eb14",
+      "name": "Update Error Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        8260,
+        540
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Başka kayıt var mı kontrol et ve Split In Batches'e sinyal gönder\nconst item = $input.first();\nconst hasMore = !!item.json.hasMore;\n\nconsole.log(`İşlem tamamlandı. Başka kayıt var mı: ${hasMore}`); \n\nreturn [\n  {\n    json: {\n      success: true,\n      message: \"Kayıt işlendi\",\n      hasMore: hasMore\n    }\n  }\n];"
+      },
+      "id": "58514bc1-1394-4ea3-8ed2-696e6c7690af",
+      "name": "Loop Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9080,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=analysis/{{$json[\"callid\"]}}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($json)}}",
+        "additionalFields": {}
+      },
+      "id": "58b650e2-9cb3-4e9e-b7f4-e63a86462add",
+      "name": "Save Analysis to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        9320,
+        240
+      ],
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Basic LLM Chain çıktısını düzgün JSON'a dönüştür\nlet item;\ntry {\n  item = $input.first();\n} catch (error) {\n  console.log('Input alınamadı:', error.message);\n  return [{\n    json: {\n      error: 'İşlem yapılamadı',\n      callid: 'unknown'\n    }\n  }];\n}\n\n// Çağrı ID'sini al\nlet callid = 'unknown';\ntry {\n  callid = $('get call file').first().json.callid || $('get conversation').first().json.callid || 'unknown';\n} catch (error) {\n  console.log('CallID bulunamadı:', error.message);\n}\n\nlet output = {};\n\nif (item.json && item.json.text) {\n  let responseText = item.json.text;\n  \n  // Markdown JSON formatını temizle\n  if (responseText.includes('```json')) {\n    responseText = responseText.replace(/```json\\n|```/g, '');\n  }\n  \n  try {\n    // JSON olarak parse et\n    output = JSON.parse(responseText);\n  } catch (error) {\n    console.log('JSON parse hatası:', error.message);\n    output = {\n      error: 'JSON parse hatası',\n      raw_text: responseText\n    };\n  }\n}\n\n// callid ekleyerek döndür\nreturn [{\n  json: {\n    ...output,\n    callid: callid\n  }\n}];"
+      },
+      "id": "ca307385-b1f3-4460-9da0-b05bd44f6b94",
+      "name": "Format LLM Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9120,
+        240
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.pipe_response\n\n\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        6140,
+        780
+      ],
+      "id": "f03211dd-365a-4458-b96f-b80fa5727f4f",
+      "name": "get pipe_response",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "bucketName": "callintech",
+        "fileKey": "={{ $json.Key }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        7700,
+        220
+      ],
+      "id": "0282de90-08c9-4365-98ec-558e7f96a056",
+      "name": "download S3 binary file",
+      "alwaysOutputData": false,
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5880,
+        320
+      ],
+      "id": "d7c046c2-e5b2-4b4e-ac2c-1115ac2480a1",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        6180,
+        560
+      ],
+      "id": "3ea6b4e6-6510-4552-aaf9-e26bdd042de7"
+    }
+  ],
+  "connections": {
+    "elevanlabs STT": {
+      "main": [
+        [
+          {
+            "node": "get conversation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Process Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get calls": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get call file": {
+      "main": [
+        [
+          {
+            "node": "inbound&outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "get call file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AWS S3": {
+      "main": [
+        []
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "download S3 binary file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "postgre kaydet": {
+      "main": [
+        [
+          {
+            "node": "Update Call Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get conversation": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "parse Json To Promt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Transcript to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "postgre kaydet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse Json To Promt": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "inbound&outbound": {
+      "main": [
+        [
+          {
+            "node": "Switch folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch folder": {
+      "main": [
+        [
+          {
+            "node": "upload S3 outbound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "upload S3 inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 outbound": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 inbound": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Error": {
+      "main": [
+        [
+          {
+            "node": "Update Error Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Call Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analysis to S3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Error Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis to S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Handler": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download S3 binary file": {
+      "main": [
+        [
+          {
+            "node": "elevanlabs STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

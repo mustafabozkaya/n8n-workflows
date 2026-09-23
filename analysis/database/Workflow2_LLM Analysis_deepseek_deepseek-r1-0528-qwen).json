@@ -1,0 +1,737 @@
+{
+  "name": "Workflow2_LLM Analysis_deepseek/deepseek-r1-0528-qwen)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 35
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -3216,
+        160
+      ],
+      "id": "781325e4-dfe8-46dc-be69-38d254980ead",
+      "name": "Schedule Trigger (LLM)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cron LLM Workflow started log\nconst now = new Date().toISOString();\nconsole.log(`🔄 Call Center LLM Analysis Workflow started at ${now}`);\nreturn [{ json: { timestamp: now, message: \"LLM Cron job başlatıldı\" } }];"
+      },
+      "id": "382235b2-7538-4fce-b933-b046ebae20c9",
+      "name": "Cron Start Log (LLM)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2960,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    pr.callid, \n    pr.transcript_s3_url,\n    pr.stt_processed,\n    c.*\nFROM public.calls c \nJOIN public.pipe_response pr ON c.callid = pr.callid \nWHERE c.stt_processed = true \n  AND pr.stt_processed = true\n  AND pr.llm_processed = false \n  AND c.skip = false\nORDER BY c.created_at ASC \nLIMIT 30;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2720,
+        160
+      ],
+      "id": "b8242d38-1b5a-41db-88d0-860c6a4bc82f",
+      "name": "Get Calls for LLM Analysis"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bca59dfc-e557-4aa6-92af-1005ca7dae0a",
+              "leftValue": "={{ $json.keys().length }}",
+              "rightValue": "20",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.keys().map(item => item) }}",
+              "operator": {
+                "type": "array",
+                "operation": "contains",
+                "rightType": "any"
+              },
+              "id": "6c87781d-95d8-4ab9-ad09-d5237f083af7",
+              "rightValue": "callid"
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2480,
+        160
+      ],
+      "id": "791e0fd1-7e89-42df-9bce-c4578633e92b",
+      "name": "Has Records to Process (LLM)?"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2224,
+        128
+      ],
+      "id": "6bfef06f-c1c6-4789-b2d8-e84e8e2ee86b",
+      "name": "Loop Over Calls for LLM"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Call bilgilerini al ve S3 path oluştur\nconst item = $input.first();\nconst callData = item.json;\n\n// Log için\nconsole.log('Processing call:', callData.callid);\n\n// S3 key oluştur - call_direction ve callid kullanarak\nlet s3Key = '';\n// let direction = '';\n\n// if (callData.call_direction) {\n//   direction = callData.call_direction.toLowerCase();\n// } else if (callData.s3_path) {\n//   // s3_path'ten yönü tahmin et\n//   if (callData.s3_path.toLowerCase().includes(\"inbound\")) {\n//     direction = 'INBOUND';\n//   } else if (callData.s3_path.toLowerCase().includes(\"outbound\")) {\n//     direction = 'OUTBOUND';\n//   }\n// } else if (callData.pr.transcript_s3_url) {\n//   if (callData.pr.transcript_s3_url.toLowerCase().includes(\"inbound\")) {\n//     direction = 'INBOUND';\n//   } else if (callData.pr.transcript_s3_url.toLowerCase().includes(\"outbound\")) {\n//     direction = 'OUTBOUND';\n//   }\n// }\n\n// Eğer direction hâlâ boşsa, inbound olarak varsay\n// if (!direction) {\n//   console.warn('Call direction could not be determined, defaulting to inbound for callid:', callData.callid);\n//   direction = 'INBOUND';\n// }\n\n// Yeni transcript path\ns3Key = `transcripts/${callData.callid}.json`;\n\nconsole.log('Transcript S3 Key:', s3Key);\n\nreturn [{\n  json: {\n    ...callData,\n    Key: s3Key\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1984,
+        160
+      ],
+      "id": "7a22bf40-a479-4d7a-8d60-11650807132e",
+      "name": "Prepare S3 Download (Transcript)"
+    },
+    {
+      "parameters": {
+        "bucketName": "callintech",
+        "fileKey": "={{ $json.Key }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        160
+      ],
+      "id": "e7f209ac-60e6-461a-93ab-e99724821c4f",
+      "name": "Download Transcript from S3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get Conversation from Transcript code as described before\nconst downloadedData = $input.item.json;\nconst callIdFromPrevious = $('Prepare S3 Download (Transcript)').item.json.callid;\nlet conversationArray = [];\nif (Array.isArray(downloadedData)) { conversationArray = downloadedData; }\nelse if (downloadedData && downloadedData.conversations && Array.isArray(downloadedData.conversations)) { conversationArray = downloadedData.conversations; }\nelse if (downloadedData && downloadedData.conversation && Array.isArray(downloadedData.conversation)) { conversationArray = downloadedData.conversation; }\nelse { console.warn(`Conversation array not found for callid: ${callIdFromPrevious}`); }\nreturn { json: { callid: callIdFromPrevious, conversation: conversationArray, ...$('Get Calls for LLM Analysis').item.json } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        160
+      ],
+      "id": "a8cf53d9-fe9e-405a-af74-ff5a74966c94",
+      "name": "Get Conversation from Transcript"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Prompt oluştur\n// Conversation verisini al\nlet conversation;\nlet callid_from_input = 'unknown';\ntry {\n  const convNodeOutput = $input.first().json; // Process Conversation'dan gelen veri\n  conversation = convNodeOutput.conversation || [];\n  callid_from_input = convNodeOutput.callid || 'unknown';\n  if (!Array.isArray(conversation)) {\n    console.log('Uyarı: conversation bir array değil');\n    conversation = [];\n  }\n} catch (error) {\n  console.log('Hata (Create Analysis Prompt - conversation):', error.message);\n  conversation = [];\n}\n\n// Prompt oluştur\nconst promptsystem = `\nYou are a call center conversation analyzer.\n\nBelow is a JSON array called \\`conversation\\`, where each item represents a speech block with the following structure:\n{\n  \"speaker\": \"speaker_0\" or \"speaker_1\" or \"unknown\",\n  \"text\": \"spoken words\",\n  \"start\": float (start time in seconds),\n  \"end\": float (end time in seconds),\n  \"conversation_index\": integer (order of conversation)\n}\n\nYour task is to analyze this conversation based on the following criteria. Respond with true, false, or \"unknown\" for boolean questions. For the sale value scale, use an integer from 1 to 5 if a sale occurred, otherwise use 0 or null.\n\nInstructions:\n1.  Determine which speaker is the **call center agent** and which is the **customer**.\n2.  Analyze the **customer's emotional tone** (e.g., calm, angry, excited, confused, etc.).\n3.  Assess overall **conversation sentiment** (positive, negative, neutral).\n4.  Identify the **main topic** (e.g., complaint, sales, technical issue, billing).\n5.  Extract the **most significant term/keyword** (e.g., 'approved', 'canceled', 'offer', 'refund').\n6.  Classify the **general experience** (acceptable, unacceptable, neutral).\n7.  Summarize **customer's experience in one word** (e.g., frustrating, smooth, excellent).\n8.  Was an **email address asked for or provided**?\n9.  Did any **positive comments from the customer lead to or reinforce a sale/commitment**?\n10. Did any **negative comments from the customer prevent or hinder a sale/commitment**?\n11. Was there any **price negotiation**?\n12. Was the **customer addressed politely** (e.g., using their name, polite phrases)?\n13. Did the conversation seem **lighthearted or fun** at any point?\n14. Were the **advantages of the services/products clearly mentioned** to the customer?\n15. Were **competing platforms or services (other than Google's own, if applicable) mentioned**?\n16. Was a **sale or commitment made** by the customer? (successful, unsuccessful, not_applicable)\n17. If a sale was made, **rate its significance or value on a scale of 1 (low) to 5 (high)**.\n18. Was the customer asked if they **knew any of the people who left reviews/comments** (if reviews were discussed)?\n19. Were **advantages of a premium/high-level profile or service tier mentioned**?\n\nIf the conversation array is empty or analysis cannot be performed, return a valid JSON object with all fields set to \"unknown\" or null as appropriate, and include an \"llm_error_message\" field with a short explanation (e.g., \"Insufficient data for analysis\" or \"Empty conversation transcript\").\n\nReturn the result in only this JSON format (ensure valid JSON, no markdown, boolean values as true/false not strings \"true\"/\"false\"):\n\n{\n  \"sentiment\": \"<positive|negative|neutral|unknown>\",\n  \"topic\": \"<conversation_topic|unknown>\",\n  \"significant_term\": \"<most_relevant_keyword|unknown>\",\n  \"general_value\": \"<acceptable|unacceptable|neutral|unknown>\",\n  \"general_experience\": \"<one_word_summary|unknown>\",\n  \"email_inquired\": \"<true|false|unknown>\",\n  \"positive_comment_passed_sale\": \"<true|false|unknown>\",\n  \"negative_comment_passed_sale\": \"<true|false|unknown>\",\n  \"price_negotiated\": \"<true|false|unknown>\",\n  \"customer_addressed_politely\": \"<true|false|unknown>\",\n  \"conversation_fun\": \"<true|false|unknown>\",\n  \"service_advantages_mentioned\": \"<true|false|unknown>\",\n  \"other_platforms_mentioned\": \"<true|false|unknown>\",\n  \"sale_outcome\": \"<successful|unsuccessful|not_applicable|unknown>\",\n  \"sale_value_scale\": \"<integer_0_to_5|null>\",\n  \"asked_if_commenters_known\": \"<true|false|unknown>\",\n  \"high_profile_advantages_mentioned\": \"<true|false|unknown>\",\n  \"llm_error_message\": \"<error_message_if_any_or_null>\"\n}\n`;\n\nconst promptuser = `\n\nHere is the JSON transcript to analyze:\n\n${JSON.stringify(conversation, null, 2)}\n`;\n\n// Sonucu döndür\nreturn [{ json: { ...$input.item.json, promptsys: promptsystem, promtuser : promptuser } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        160
+      ],
+      "id": "f27ed945-c73c-4a5e-b5fc-f6bc81b3f19f",
+      "name": "Create Analysis Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -800,
+        64
+      ],
+      "id": "0aabdd8a-d1db-4b78-9a51-44f05dc9183d",
+      "name": "LLM Analysis Chain"
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmInputItem = $input.first();\nlet output = {};\nlet llmError = null;\nlet reasoningText = null;\n\nconst modelName = \"Claude opus 3\";\n\n// JSON uyumlu hale getirme (llm_error_message ve reasoning için)\nconst sanitizeText = (text) => {\n  if (!text || typeof text !== 'string') return text;\n  return text\n    .replace(/[\"']/g, '-')     // Tırnakları tireyle değiştir\n    .replace(/\\n/g, ' ')       // Satır sonlarını boşluk yap\n    .replace(/\\r/g, ' ')\n    .replace(/\\\\/g, '-');      // backslash'ı da kaldır\n};\n\n// Normalizasyon\nconst normalizeValue = (val) => {\n  if (val === undefined || val === null || val === 'unknown') return null;\n  if (typeof val === 'number' && isNaN(val)) return null;\n  return val;\n};\n\n// Beklenen alanlar\nconst defaultFields = {\n  sentiment: null,\n  topic: null,\n  significant_term: null,\n  general_value: null,\n  general_experience: null,\n  email_inquired: null,\n  positive_comment_passed_sale: null,\n  negative_comment_passed_sale: null,\n  price_negotiated: null,\n  customer_addressed_politely: null,\n  conversation_fun: null,\n  service_advantages_mentioned: null,\n  other_platforms_mentioned: null,\n  sale_outcome: null,\n  sale_value_scale: null,\n  asked_if_commenters_known: null,\n  high_profile_advantages_mentioned: null,\n  llm_error_message: null\n};\n\n// Call ID çekimi\nlet callid = 'unknown';\ntry {\n  callid = normalizeValue(\n    llmInputItem.json.callid ||\n    $('Create Analysis Prompt').first().json.callid ||\n    $('Get Conversation from Transcript').first().json.callid\n  ) || 'unknown';\n} catch (err) {\n  console.log('callid alınamadı:', err.message);\n}\n\n// Ana işleme\nif (llmInputItem.json.error) {\n  llmError = llmInputItem.json.error.message || 'LLM bilinmeyen hata';\n  output = {\n    ...defaultFields,\n    llm_error_message: sanitizeText(llmError)\n  };\n} else if (llmInputItem.json && llmInputItem.json.text) {\n  let responseText = llmInputItem.json.text.trim();\n\n  // Kod bloğu varsa temizle\n  if (responseText.startsWith('```')) {\n    responseText = responseText.replace(/^```json|^```/, '').replace(/```$/, '').trim();\n  }\n\n  // Gömülü JSON'u yakala\n  const jsonStartIndex = responseText.indexOf('{');\n  const jsonEndIndex = responseText.lastIndexOf('}');\n\n  if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {\n    let jsonString = responseText.slice(jsonStartIndex, jsonEndIndex + 1);\n\n    // Reasoning ayıklama\n    const reasoningIndex = responseText.indexOf('Reasoning:');\n    if (reasoningIndex !== -1) {\n      reasoningText = sanitizeText(responseText.slice(reasoningIndex + 10).trim());\n    }\n\n    try {\n      const parsed = JSON.parse(jsonString);\n\n      for (const key in defaultFields) {\n        output[key] = normalizeValue(parsed[key]);\n      }\n\n    } catch (err) {\n      llmError = 'LLM yanıtı JSON parse hatası: ' + err.message;\n      output = {\n        ...defaultFields,\n        raw_text: responseText,\n        llm_error_message: sanitizeText(llmError)\n      };\n    }\n  } else {\n    llmError = 'JSON yapısı bulunamadı.';\n    output = {\n      ...defaultFields,\n      raw_text: responseText,\n      llm_error_message: sanitizeText(llmError)\n    };\n  }\n} else {\n  llmError = 'LLM yanıtı boş veya text alanı yok.';\n  output = {\n    ...defaultFields,\n    llm_error_message: sanitizeText(llmError)\n  };\n}\n\n// LLM hatası yoksa \"no_error\" yaz\noutput.llm_error_message = output.llm_error_message === null ? 'no_error' : output.llm_error_message;\n\n// Reasoning varsa ekle\nif (reasoningText) {\n  output.reasoning_text = reasoningText;\n}\n\n// Final JSON çıktı\nreturn [{\n  json: {\n    ...output,\n    callid: callid,\n    model: modelName\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        160
+      ],
+      "id": "3cf2aeec-e685-4918-be1c-14267f1a26f4",
+      "name": "Format LLM Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Format LLM Response').item.json.llm_error_message }}",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              },
+              "id": "9f30a849-0ec4-45bc-bfc5-a59ee6079862"
+            },
+            {
+              "id": "8d651b1a-31aa-4702-8cb8-917cec63a1b3",
+              "leftValue": "={{$input.first().json.keys().length}}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "ca14fab9-fbd3-4c92-9214-8502681293a0",
+              "leftValue": "={{$input.first().json.llm_error_message}}",
+              "rightValue": "no_error",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        160
+      ],
+      "id": "e5d8daa6-c4d1-4006-a8bf-c5662766ed83",
+      "name": "IF LLM Error?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": " \nUPDATE public.pipe_response SET llm_error = '{{ $('Format LLM Response').item.json.llm_error_message.substring(0,250) }}', llm_processed = TRUE, analysis_s3_url = null, \n   updated_at = '{{ $now }}'\n   WHERE callid = '{{ $('Format LLM Response').item.json.callid }}' ON CONFLICT (callid) DO UPDATE SET llm_error = EXCLUDED.llm_error, llm_processed = EXCLUDED.llm_processed, analysis_s3_url = EXCLUDED.analysis_s3_url,updated_at = Exclude.updated_at;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        32,
+        208
+      ],
+      "id": "64c6d707-b27d-4880-b0aa-f7fcea1d68ea",
+      "name": "Update DB on LLM Error"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "callintech",
+        "fileName": "=analysis/{{$json.callid}}.json",
+        "binaryData": false,
+        "fileContent": "={{JSON.stringify($('Format LLM Response').item.json)}}",
+        "additionalFields": {}
+      },
+      "id": "b26a0b0b-a8be-4566-823f-14cbb16f774b",
+      "name": "Save Analysis to S3",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.success }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "6baffd30-9ac2-4bd5-8a24-ab80d8b9045a"
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        0
+      ],
+      "id": "4acf5267-f020-4f65-bf17-fd92d6e78111",
+      "name": "If S3 Analysis Save Successful"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"analysis_url\": \"https://callintech.s3.us-east-1.amazonaws.com/analysis/{{ $('Format LLM Response').first().json.callid }}.json\",\n  \"callid\": \"{{ $('Format LLM Response').first().json.callid }}\",\n  \"analysis_method\" : \"{{ $('Format LLM Response').first().json.model }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        0
+      ],
+      "id": "6337c31a-4162-423a-b01f-7aaf9bcc04d0",
+      "name": "s3 analysis field"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.llm_analysis (\n  callid, sentiment, topic, significant_term, general_value,\n  general_experience, email_inquired, positive_comment_passed_sale,\n  negative_comment_passed_sale, price_negotiated, customer_addressed_politely,\n  conversation_fun, service_advantages_mentioned, other_platforms_mentioned,\n  sale_outcome, sale_value_scale, asked_if_commenters_known,\n  high_profile_advantages_mentioned, llm_error_message,analysis_method\n)\nVALUES (\n  '{{ $('Format LLM Response').item.json.callid }}',\n  '{{ $('Format LLM Response').item.json.sentiment }}',\n  '{{ $('Format LLM Response').item.json.topic }}',\n  '{{ $('Format LLM Response').item.json.significant_term }}',\n  '{{ $('Format LLM Response').item.json.general_value }}',\n  '{{ $('Format LLM Response').item.json.general_experience }}',\n  {{ $('Format LLM Response').item.json.email_inquired === 'true' ? 'true' : $('Format LLM Response').item.json.email_inquired === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.positive_comment_passed_sale === 'true' ? 'true' : $('Format LLM Response').item.json.positive_comment_passed_sale === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.negative_comment_passed_sale === 'true' ? 'true' : $('Format LLM Response').item.json.negative_comment_passed_sale === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.price_negotiated === 'true' ? 'true' : $('Format LLM Response').item.json.price_negotiated === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.customer_addressed_politely === 'true' ? 'true' : $('Format LLM Response').item.json.customer_addressed_politely === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.conversation_fun === 'true' ? 'true' : $('Format LLM Response').item.json.conversation_fun === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.service_advantages_mentioned === 'true' ? 'true' : $('Format LLM Response').item.json.service_advantages_mentioned === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.other_platforms_mentioned === 'true' ? 'true' : $('Format LLM Response').item.json.other_platforms_mentioned === 'false' ? 'false' : 'null' }},\n  '{{ $('Format LLM Response').item.json.sale_outcome }}',\n  {{ $('Format LLM Response').item.json.sale_value_scale ?? 'null' }},\n  {{ $('Format LLM Response').item.json.asked_if_commenters_known === 'true' ? 'true' : $('Format LLM Response').item.json.asked_if_commenters_known === 'false' ? 'false' : 'null' }},\n  {{ $('Format LLM Response').item.json.high_profile_advantages_mentioned === 'true' ? 'true' : $('Format LLM Response').item.json.high_profile_advantages_mentioned === 'false' ? 'false' : 'null' }},\n  '{{ $('Format LLM Response').item.json.llm_error_message }}',\n  '{{ $('Format LLM Response').item.json.model }}'\n)\nON CONFLICT (callid) DO UPDATE SET\n  sentiment = EXCLUDED.sentiment,\n  topic = EXCLUDED.topic,\n  significant_term = EXCLUDED.significant_term,\n  general_value = EXCLUDED.general_value,\n  general_experience = EXCLUDED.general_experience,\n  email_inquired = EXCLUDED.email_inquired,\n  positive_comment_passed_sale = EXCLUDED.positive_comment_passed_sale,\n  negative_comment_passed_sale = EXCLUDED.negative_comment_passed_sale,\n  price_negotiated = EXCLUDED.price_negotiated,\n  customer_addressed_politely = EXCLUDED.customer_addressed_politely,\n  conversation_fun = EXCLUDED.conversation_fun,\n  service_advantages_mentioned = EXCLUDED.service_advantages_mentioned,\n  other_platforms_mentioned = EXCLUDED.other_platforms_mentioned,\n  sale_outcome = EXCLUDED.sale_outcome,\n  sale_value_scale = EXCLUDED.sale_value_scale,\n  asked_if_commenters_known = EXCLUDED.asked_if_commenters_known,\n  high_profile_advantages_mentioned = EXCLUDED.high_profile_advantages_mentioned,\n  llm_error_message = EXCLUDED.llm_error_message,\n  analysis_method =EXCLUDED.analysis_method;\n  \n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        768,
+        0
+      ],
+      "id": "116fe1ab-ba25-41cd-afc9-4ada82c24e43",
+      "name": "save llm_analysis (Postgres)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"callid\": \"{{ $('Format LLM Response').item.json.callid }}\",\n  \"response\": \"{{ $('Format LLM Response').item.json.sale_outcome }}\",\n  \"note\": \"{{ JSON.stringify($('Format LLM Response').item.json.raw_text).replace(/\"/g, '\\\\\"') || no_raw_text || JSON.stringify($('Format LLM Response').item.json.reasoning_text).replace(/\"/g, '\\\\\"') || no_reason }}\",\n  \"analysis_s3_url\": \"{{ $('s3 analysis field').item.json.analysis_url }}\",\n  \"analysis_method\" : \"{{ $('Format LLM Response').item.json.model }}\",\n  \"llm_processed\": true,\n  \"llm_processed_at\": \"{{ $now.toISO() }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "e99e75e5-d5c2-4121-8641-e76bf9d282a4",
+      "name": "Prepare Final pipe_response Data"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pipe_response\nSET\n\n  response = '{{ $json.response }}',\n  calltext = NULL,\n  note = '{{ $json.note }}',\n\n  updated_at = '{{ $json.llm_processed_at }}',\n  llm_processed = {{ $json.llm_processed }},\n  llm_error = 'No error',\n\n  analysis_s3_url = '{{ $json.analysis_s3_url }}'\nWHERE callid = '{{ $json.callid }}';\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "f7195f4b-8634-4635-b808-5ac38949ba58",
+      "name": "Update Final pipe_response"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "destinationKey": "conversation",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        160
+      ],
+      "id": "df2dc804-ad81-4e06-ad5e-e8328e7a5da0",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        224
+      ],
+      "id": "f81bf73d-04ce-44bf-a695-ff3b7c900834",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\nINSERT INTO call_analysis (\n    callid, sentiment, topic, significant_term, general_value, general_experience,\n    email_inquired, positive_comment_passed_sale, negative_comment_passed_sale,\n    price_negotiated, customer_addressed_politely, conversation_fun,\n    service_advantages_mentioned, other_platforms_mentioned, sale_outcome,\n    sale_value_scale, asked_if_commenters_known, high_profile_advantages_mentioned,\n    coordination_confidence, agent_conflicts_resolved, language_detected,\n    analysis_method, agent_count, llm_error_message,\n\n    calltype, ext, phn, url, call_direction, recording_url, skip_reason, skip, h_agent,\n    s3_uploaded, stt_processed_calls,\n\n    agent, response, calltext, note, transcript_s3_url, analysis_s3_url,\n    llm_processed, stt_processed_pipe, llm_error_pipe\n)\nWITH UniqueLLM AS (\n    -- llm_analysis tablosundaki yinelenen kayıtları temizler.\n    SELECT *,\n           ROW_NUMBER() OVER(PARTITION BY callid ORDER BY COALESCE(updated_at, created_at, '1970-01-01') DESC) as rn\n    FROM llm_analysis\n),\nUniquePipeResponse AS (\n    -- pipe_response tablosundaki yinelenen kayıtları temizler.\n    SELECT *,\n           ROW_NUMBER() OVER(PARTITION BY callid ORDER BY COALESCE(updated_at, created_at, '1970-01-01') DESC) as rn\n    FROM pipe_response\n)\nSELECT\n    la.callid, la.sentiment, la.topic, la.significant_term, la.general_value, la.general_experience,\n    la.email_inquired, la.positive_comment_passed_sale, la.negative_comment_passed_sale,\n    la.price_negotiated, la.customer_addressed_politely, la.conversation_fun,\n    la.service_advantages_mentioned, la.other_platforms_mentioned, la.sale_outcome,\n    la.sale_value_scale, la.asked_if_commenters_known, la.high_profile_advantages_mentioned,\n    la.coordination_confidence, la.agent_conflicts_resolved, la.language_detected,\n    la.analysis_method, la.agent_count, la.llm_error_message,\n\n    c.calltype, c.ext, c.phn, c.url, c.call_direction, c.recording_url, c.skip_reason, c.skip, c.h_agent,\n    c.s3_uploaded, c.stt_processed AS stt_processed_calls,\n\n    pr.agent, pr.response, pr.calltext, pr.note, pr.transcript_s3_url, pr.analysis_s3_url,\n    pr.llm_processed, pr.stt_processed AS stt_processed_pipe, pr.llm_error AS llm_error_pipe\nFROM\n    (SELECT * FROM UniqueLLM WHERE rn = 1) la\nJOIN\n    calls c ON la.callid = c.callid\nLEFT JOIN\n    (SELECT * FROM UniquePipeResponse WHERE rn = 1) pr ON la.callid = pr.callid\nLEFT JOIN\n    call_analysis ca ON la.callid = ca.callid\nWHERE\n    ca.callid IS NULL\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1632,
+        0
+      ],
+      "id": "f0627f6a-0a1a-4702-a13a-009235418ee9",
+      "name": "save call_analysis (Postgres)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        288
+      ],
+      "id": "67c5b23b-fa13-48ef-9f9c-3c805e7c3510",
+      "name": "Ollama Chat Model"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-3-opus-20240229",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 3"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -624,
+        272
+      ],
+      "id": "ed9dbbad-dacd-4026-bdc2-d73e55b7beb2",
+      "name": "Anthropic Chat Model"
+    }
+  ],
+  "pinData": {
+    "Schedule Trigger (LLM)": [
+      {
+        "json": {
+          "timestamp": "2025-06-29T22:00:57.007+03:00",
+          "Readable date": "June 29th 2025, 10:00:57 pm",
+          "Readable time": "10:00:57 pm",
+          "Day of week": "Sunday",
+          "Year": "2025",
+          "Month": "June",
+          "Day of month": "29",
+          "Hour": "22",
+          "Minute": "00",
+          "Second": "57",
+          "Timezone": "Europe/Istanbul (UTC+03:00)"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Cron Start Log (LLM)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Calls for LLM Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Calls for LLM Analysis": {
+      "main": [
+        [
+          {
+            "node": "Has Records to Process (LLM)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Records to Process (LLM)?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Calls for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Calls for LLM": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Prepare S3 Download (Transcript)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare S3 Download (Transcript)": {
+      "main": [
+        [
+          {
+            "node": "Download Transcript from S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Transcript from S3": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation from Transcript": {
+      "main": [
+        [
+          {
+            "node": "Create Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis Chain": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "IF LLM Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF LLM Error?": {
+      "main": [
+        [
+          {
+            "node": "Save Analysis to S3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update DB on LLM Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB on LLM Error": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analysis to S3": {
+      "main": [
+        [
+          {
+            "node": "If S3 Analysis Save Successful",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If S3 Analysis Save Successful": {
+      "main": [
+        [
+          {
+            "node": "s3 analysis field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "s3 analysis field": {
+      "main": [
+        [
+          {
+            "node": "save llm_analysis (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save llm_analysis (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final pipe_response Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final pipe_response Data": {
+      "main": [
+        [
+          {
+            "node": "Update Final pipe_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Final pipe_response": {
+      "main": [
+        [
+          {
+            "node": "save call_analysis (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation from Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Calls for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save call_analysis (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Analysis Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "485de002-d399-47eb-b8b5-01499e1f9400",
+  "meta": {
+    "instanceId": "c098c709e16b3b24d6c4818af649ab067f84dea2f1d5f494e7e74ae5b54c8cb9"
+  },
+  "id": "BnKnL60ccGxsVod-f-aLc",
+  "tags": []
+}

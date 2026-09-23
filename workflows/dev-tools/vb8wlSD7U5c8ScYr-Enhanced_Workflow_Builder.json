@@ -1,0 +1,480 @@
+{
+  "name": "Enhanced Workflow Builder",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4"
+        },
+        "options": {
+          "maxTokensToSample": 8000,
+          "thinking": true,
+          "thinkingBudget": 1024
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2300,
+        -480
+      ],
+      "id": "16339625-bd07-40cb-8f03-05c414c809e6",
+      "name": "Claude Sonnet 4",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6NeOySOMHItR8Dvc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "workflowObject": "={{ $json.output[1].text }}",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        -680
+      ],
+      "id": "e0f7fdb7-a047-41da-9e7e-c46307f0bfcf",
+      "name": "n8n API ile Workflow Oluştur",
+      "credentials": {
+        "n8nApi": {
+          "id": "C3KK1q4rbFU4CWZy",
+          "name": "n8n account api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4b8c16e-6788-4c17-b643-94a3f0620860",
+              "name": "Workflow Link",
+              "value": "=https://yaskagroup1.app.n8n.cloud/workflow/{{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2880,
+        -660
+      ],
+      "id": "6a2e7f87-b2c7-48a6-ba9a-580d152df069",
+      "name": "Workflow Linki Oluştur"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User request: {{ $json.query }}\n\n=== WEB SOURCES CONTEXT ===\n{{ $json.added_file_context }}",
+        "options": {
+          "systemMessage": "=# Overview\nYou are an expert AI automation developer specializing in building workflows for n8n. Your job is to translate a human's natural language request into a fully functional n8n workflow JSON. It should be comprehensive, functional, and importable. You will be provided with context from various web pages and sources to help you build the workflow.\n\n## Output\nYour output should only be the final JSON of the full workflow.\n\nYour output must start with a { and must end with a }.\n- Do not include anything before the { (such as ```json or any markdown formatting).\n- Do not include anything after the } (such as closing code blocks like ``` or explanations).\n\nYour output should be a pure JSON object that begins with { and ends with }, ready to be used as the body of a POST request.\n\nThe JSON must:\n- Be syntactically valid and complete\n- Include a `nodes` array with each node containing all required parameters\n- Include a `connections` object that correctly maps outputs to inputs\n- Start with a `trigger` node if one is required for the use case (e.g., Webhook, Schedule, etc.)\n- Contain descriptive names and parameter values relevant to the user request\n- Avoid placeholders unless no reasonable value can be inferred\n- Contain sticky notes that are explaining what's going on within each step and any credentials or connections that still need to be configured. The colors should vary throughout the workflow.\n\nBefore generating the JSON, analyze the request and the provided context.\n\n## API Submission Requirements\nTo automatically create a workflow using the n8n API, your generated JSON must include the following top-level fields in the final object:\n\n- `name` (string): A clear, descriptive workflow name.\n- `nodes` (array): The complete array of node objects used in the workflow.\n- `connections` (object): A valid map of node-to-node connections.\n- `settings` (object): Workflow-level settings.\n- `staticData` (null or object): Set to `null`.\n\n## n8n documentation :https://docs.n8n.io/glossary/\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2260,
+        -680
+      ],
+      "id": "b764cb61-ed09-4b66-808e-3e1d32d16081",
+      "name": "n8n Builder"
+    },
+    {
+      "parameters": {
+        "content": "# Gelişmiş Workflow Builder\nBu iş akışı, kullanıcı tarafından sağlanan bir istemi ve bir dizi URL'yi alır. URL'lerden veri (metin, HTML, JSON) çeker, bu verileri birleştirerek LLM için bir bağlam oluşturur ve bu bağlamı kullanarak istenen n8n iş akışını JSON formatında üretir. Son olarak, üretilen JSON'u n8n API aracılığıyla yeni bir iş akışı olarak oluşturur.\n\n**Giriş Formatı (Tetikleyiciye gönderilecek JSON):**\n```json\n{\n  \"query\": \"Gmail'e yeni bir e-posta geldiğinde, ekinin içeriğini özetleyip bir Google Sheet'e yazan bir iş akışı oluştur.\",\n  \"sources\": [\n    \"https://docs.n8n.io/nodes/n8n-nodes-base.gmail/\",\n    \"https://api.github.com/users/n8n-io\",\n    \"https://raw.githubusercontent.com/n8n-io/n8n/master/README.md\"\n  ]\n}\n```\n\n**Yeni Özellikler:**\n- Ana agent'ten doğru formatta veri alma\n- Dosya yüklemelerini destekleme\n- URL'leri otomatik ayıklama\n- Akıllı içerik çıkarma (HTML/JSON/Text)",
+        "height": 800,
+        "width": 1820,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -1040
+      ],
+      "id": "7a7b9d87-dc72-4e53-b635-ad8c809f6ea3",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        -640
+      ],
+      "id": "a4ccbd1a-cf29-4539-874e-774ad8283f53",
+      "name": "Başka bir Workflow ile Tetiklendiğinde"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1640,
+        -580
+      ],
+      "id": "7e3f3139-4d30-4a8d-ab8f-e718d37ff676",
+      "name": "Web Sitesini Tara"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $json.sources }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2.2,
+      "position": [
+        1380,
+        -580
+      ],
+      "id": "c6d51a7d-1e68-4b1e-9630-682e1f78ca35",
+      "name": "Kaynak URL'lerini Ayır"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $items;\nlet aggregatedContent = '';\n\nfor (const item of allItems) {\n  const url = item.json.url;\n  const content = item.json.extractedText || '';\n\n  aggregatedContent += `--- START OF SOURCE: ${url} ---\\n\\n`;\n  aggregatedContent += content;\n  aggregatedContent += `\\n\\n--- END OF SOURCE: ${url} ---\\n\\n`;\n}\n\n// Ana workflow'tan gelen query'yi de dahil et\nconst originalQuery = $input.first().json.query || '';\n\nreturn [{ \n  json: { \n    query: originalQuery,\n    added_file_context: aggregatedContent \n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        -580
+      ],
+      "id": "3fe74cfe-17bf-4efd-bae1-c214c7742125",
+      "name": "Taranan Verileri Birleştir"
+    },
+    {
+      "parameters": {
+        "content": "Tüm kaynaklardan toplanan metinler burada tek bir metin bloğunda birleştirilir. Her kaynağın başına ve sonuna ayırıcı etiketler eklenir. Bu veriler LLM'e bağlam olarak verilir.",
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        -440
+      ],
+      "id": "ed11e71e-6552-4462-9f34-0bb606f24b76",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Bu düğüm, ana agent'ten gelen veriyi işler ve doğru formatta sub workflow'a gönderir. Artık sadece query değil, {query, sources} formatında veri alır.",
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -820
+      ],
+      "id": "fffbb160-3c24-4f2a-9e5c-1338d5a7b92d",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "Workflow Linki oluşturulurken, `yaskagroup1.app.n8n.cloud` kısmını kendi n8n bulut veya sunucu adresinizle değiştirmeyi unutmayın.",
+        "height": 200,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2600,
+        -500
+      ],
+      "id": "97533543-992d-4e02-ab23-f00e74589154",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $item;\nconst contentType = item.json.headers['content-type'] || '';\nlet extractedText = '';\n\ntry {\n  // Gelen verinin türünü kontrol et\n  if (contentType.includes('application/json')) {\n    // JSON ise, okunabilir metne çevir\n    const jsonData = typeof item.json.data === 'string' ? JSON.parse(item.json.data) : item.json.data;\n    extractedText = JSON.stringify(jsonData, null, 2);\n  } else if (contentType.includes('text/html')) {\n    // HTML ise, etiketleri temizleyerek metni al\n    const htmlContent = item.json.data || '';\n    // Script ve style etiketlerini tamamen kaldır\n    let cleanHtml = htmlContent.replace(/<script[^>]*>.*?<\\/script>/gsi, '');\n    cleanHtml = cleanHtml.replace(/<style[^>]*>.*?<\\/style>/gsi, '');\n    // Diğer HTML etiketlerini kaldır\n    extractedText = cleanHtml.replace(/<[^>]*>/g, ' ')\n                              .replace(/\\s\\s+/g, ' ')\n                              .trim();\n  } else {\n    // Diğer durumlar (text/plain vb.) için veriyi olduğu gibi al\n    extractedText = item.json.data || '';\n  }\n} catch (error) {\n  // Hata durumunda ham veriyi kullan\n  extractedText = item.json.data || '';\n}\n\n// Çok uzun metinleri kısalt (10000 karakter)\nif (extractedText.length > 10000) {\n  extractedText = extractedText.substring(0, 10000) + '\\n\\n[Content truncated due to length...]';\n}\n\n// Orijinal veriyi koruyarak ayıklanan metni ekle\nitem.json.extractedText = extractedText;\n\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        -580
+      ],
+      "id": "9bad8d6c-da05-42da-8581-2845fcfbda0d",
+      "name": "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)"
+    },
+    {
+      "parameters": {
+        "content": "Bu düğüm, gelen verinin türünü (JSON, HTML, Metin) algılar ve LLM'in anlayabileceği temiz bir metin formatına dönüştürür. Ayrıca çok uzun içerikleri kısaltarak performansı artırır.",
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1740,
+        -760
+      ],
+      "id": "6a52a34f-620b-4497-9001-8a84dfe3dcef",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "121a2af5-0bd4-47fb-a172-a5b0e21dfb3c",
+              "leftValue": "={{ $json.sources && $json.sources.length > 0 ? $json.sources.length : 0 }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        860,
+        -540
+      ],
+      "id": "bb2cfa8d-d68f-44be-8ad9-c29e3e187278",
+      "name": "Kaynak URL'leri Var mı?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ana agent'ten gelen veriyi işle\nconst inputData = $input.first().json;\n\n// Veri yapısını kontrol et ve normalize et\nlet query = '';\nlet sources = [];\n\n// Eğer builderPayload varsa (ana agent'ten geliyorsa)\nif (inputData.builderPayload) {\n  query = inputData.builderPayload.query || '';\n  sources = inputData.builderPayload.sources || [];\n} else {\n  // Doğrudan gelen veri formatı\n  query = inputData.query || '';\n  sources = inputData.sources || [];\n}\n\n// Eğer query'de URL'ler varsa ve sources boşsa, URL'leri ayıkla\nif (sources.length === 0 && query) {\n  const urlRegex = /https?:\\/\\/[^\\s]+/g;\n  const extractedUrls = query.match(urlRegex) || [];\n  sources = extractedUrls;\n}\n\n// Sadece geçerli URL'leri filtrele\nsources = sources.filter(url => {\n  try {\n    new URL(url);\n    return true;\n  } catch {\n    return false;\n  }\n});\n\nreturn [{ \n  json: { \n    query: query,\n    sources: sources,\n    originalData: inputData\n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        -640
+      ],
+      "id": "692dab71-1763-4489-bd2b-e194acc58699",
+      "name": "Gelen Veriyi Normalize Et"
+    },
+    {
+      "parameters": {
+        "content": "Bu düğüm, ana agent'ten gelen veriyi normalize eder. builderPayload formatı olsun ya da direkt {query, sources} formatı olsun, her ikisini de destekler.",
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        -820
+      ],
+      "id": "e311f007-522c-4e24-9567-2b0dd0f6512b",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "direct_query",
+              "name": "query",
+              "value": "={{ $json.query }}",
+              "type": "string"
+            },
+            {
+              "id": "empty_context",
+              "name": "added_file_context",
+              "value": "No additional web sources were provided. Using only the base n8n documentation context.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1400,
+        -380
+      ],
+      "id": "29f9440c-c300-4392-831e-697add7989b0",
+      "name": "Doğrudan Builder'a Hazırla"
+    },
+    {
+      "parameters": {
+        "content": "Eğer kaynak URL'leri yoksa, sadece query ile direkt builder'a gönderilir. Bu durumda temel n8n bilgisi kullanılır."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -400
+      ],
+      "id": "37b41476-9b30-4926-baf8-3ecda2fbecb9",
+      "name": "Sticky Note7"
+    }
+  ],
+  "connections": {
+    "n8n API ile Workflow Oluştur": {
+      "main": [
+        [
+          {
+            "node": "Workflow Linki Oluştur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Builder": {
+      "main": [
+        [
+          {
+            "node": "n8n API ile Workflow Oluştur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Başka bir Workflow ile Tetiklendiğinde": {
+      "main": [
+        [
+          {
+            "node": "Gelen Veriyi Normalize Et",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Sitesini Tara": {
+      "main": [
+        [
+          {
+            "node": "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynak URL'lerini Ayır": {
+      "main": [
+        [
+          {
+            "node": "Web Sitesini Tara",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Taranan Verileri Birleştir": {
+      "main": [
+        [
+          {
+            "node": "n8n Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet 4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "n8n Builder",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İçeriği Akıllıca Çıkar (Metin/JSON/HTML)": {
+      "main": [
+        [
+          {
+            "node": "Taranan Verileri Birleştir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynak URL'leri Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Kaynak URL'lerini Ayır",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Doğrudan Builder'a Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gelen Veriyi Normalize Et": {
+      "main": [
+        [
+          {
+            "node": "Kaynak URL'leri Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doğrudan Builder'a Hazırla": {
+      "main": [
+        [
+          {
+            "node": "n8n Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

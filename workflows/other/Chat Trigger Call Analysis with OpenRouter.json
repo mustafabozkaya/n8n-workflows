@@ -1,0 +1,344 @@
+{
+  "name": "Chat Trigger Call Analysis with OpenRouter",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Process uploaded files and extract audio data\nconst items = $input.all();\nconst processedItems = [];\n\nfor (const item of items) {\n  if (item.binary && Object.keys(item.binary).length > 0) {\n    // Process each uploaded file\n    for (const [fileName, fileData] of Object.entries(item.binary)) {\n      // Check if it's an audio file\n      const mimeType = fileData.mimeType || '';\n      const isAudio = mimeType.startsWith('audio/') || \n                     fileName.toLowerCase().endsWith('.wav') ||\n                     fileName.toLowerCase().endsWith('.mp3') ||\n                     fileName.toLowerCase().endsWith('.m4a') ||\n                     fileName.toLowerCase().endsWith('.ogg');\n      \n      if (isAudio) {\n        const callid = `chat-audio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;\n        \n        processedItems.push({\n          json: {\n            callid: callid,\n            filename: fileName,\n            mimeType: mimeType,\n            fileSize: fileData.fileSize || 0,\n            uploadTime: new Date().toISOString(),\n            userInput: item.json.text || '' // User's text message if any\n          },\n          binary: {\n            audio: fileData\n          }\n        });\n      }\n    }\n  } else if (item.json.text) {\n    // Handle text-only input\n    return [{\n      json: {\n        error: 'No audio file detected. Please upload an audio file for analysis.',\n        message: item.json.text\n      }\n    }];\n  }\n}\n\nif (processedItems.length === 0) {\n  return [{\n    json: {\n      error: 'No valid audio files found in upload. Please upload audio files (WAV, MP3, M4A, OGG).'\n    }\n  }];\n}\n\nreturn processedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        144
+      ],
+      "id": "c63ae902-02ca-4a8d-a3fe-91c8f1791e26",
+      "name": "Process Uploaded Audio"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Base64 encode audio and prepare OpenRouter request\nconst binaryData = $input.first().binary.audio;\nconst audioBuffer = Buffer.from(binaryData.data, 'base64');\nconst base64Audio = audioBuffer.toString('base64');\n\n// Determine audio format from file extension/mime type\nconst mimeType = $input.first().json.mimeType;\nconst filename = $input.first().json.filename.toLowerCase();\nlet audioFormat = 'wav';\n\nif (mimeType.includes('mp3') || filename.endsWith('.mp3')) audioFormat = 'mp3';\nelse if (mimeType.includes('m4a') || filename.endsWith('.m4a')) audioFormat = 'm4a';\nelse if (mimeType.includes('ogg') || filename.endsWith('.ogg')) audioFormat = 'ogg';\nelse if (mimeType.includes('webm') || filename.endsWith('.webm')) audioFormat = 'webm';\n\nconst messages = [{\n  role: 'user',\n  content: [\n    {\n      type: 'text',\n      text: `Please transcribe this audio file with detailed speaker diarization. Format response as a JSON array of conversation segments. Each segment should include:\\n- speaker: \"speaker_0\", \"speaker_1\", etc.\\n- text: spoken content\\n- start: start time in seconds\\n- end: end time in seconds\\n\\nThe audio file is: ${$input.first().json.filename}\\n\\nUser also mentioned: ${$input.first().json.userInput || 'No additional context'}`\n    },\n    {\n      type: 'input_audio',\n      inputAudio: {\n        data: base64Audio,\n        format: audioFormat\n      }\n    }\n  ]\n}];\n\nreturn [{\n  json: {\n    callid: $input.first().json.callid,\n    filename: $input.first().json.filename,\n    mimeType: $input.first().json.mimeType,\n    userInput: $input.first().json.userInput,\n    messages: messages,\n    audioFormat: audioFormat\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        144
+      ],
+      "id": "837f9511-7d5d-4dfd-8c90-34f731e30cbd",
+      "name": "Prepare Audio Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $openrouter_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://n8n-workflow.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "openai/gpt-4o-audio-preview"
+            },
+            {
+              "name": "messages",
+              "value": "={{ $json.messages }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.1
+            },
+            {
+              "name": "max_tokens",
+              "value": 4000
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -752,
+        144
+      ],
+      "id": "01f082df-f8b0-4b18-b6b8-068638982843",
+      "name": "OpenRouter Audio Transcription",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process OpenRouter transcription response into conversation format\nlet words = [];\nlet transcriptionError = null;\n\nconst inputItem = $input.first();\n\nif (inputItem.json.error) {\n  transcriptionError = inputItem.json.error;\n} else {\n  try {\n    const response = inputItem.json.choices?.[0]?.message?.content;\n    if (response) {\n      // Try to parse JSON response\n      let parsed;\n      if (response.includes('```json')) {\n        parsed = JSON.parse(response.match(/```json\\s*([\\s\\S]*?)\\s*```/)?.[1] || response);\n      } else {\n        parsed = JSON.parse(response);\n      }\n      words = parsed || [];\n    } else {\n      transcriptionError = 'No transcription response received from OpenRouter';\n    }\n  } catch (error) {\n    transcriptionError = 'Failed to parse transcription response: ' + error.message;\n    console.log('Transcription Error:', transcriptionError, 'Response:', inputItem.json.choices?.[0]?.message?.content);\n  }\n}\n\nif (transcriptionError) {\n  return [{\n    json: {\n      callid: inputItem.json.callid,\n      filename: inputItem.json.filename,\n      userInput: inputItem.json.userInput,\n      conversation: [],\n      error: transcriptionError\n    }\n  }];\n}\n\n// Format into conversation structure\nconst conversation = words.map((segment, index) => ({\n  speaker: segment.speaker || `speaker_${segment.speaker_id || 0}`,\n  text: segment.text || segment.content || '',\n  start: segment.start || 0,\n  end: segment.end || (segment.start || 0) + 1,\n  conversation_index: index\n}));\n\nreturn [{\n  json: {\n    callid: inputItem.json.callid,\n    filename: inputItem.json.filename,\n    userInput: inputItem.json.userInput,\n    conversation: conversation,\n    transcriptSuccess: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        144
+      ],
+      "id": "021388b6-3b35-4263-aa30-970e0c9ec95f",
+      "name": "Process Transcription"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create analysis prompt (reuse existing logic)\nlet conversation;\nlet callid_from_input = 'unknown';\nlet userInput = '';\n\ntry {\n  const inputItem = $input.first().json;\n  conversation = inputItem.conversation || [];\n  callid_from_input = inputItem.callid || 'unknown';\n  userInput = inputItem.userInput || '';\n  \n  if (!Array.isArray(conversation)) {\n    console.log('Warning: conversation is not an array');\n    conversation = [];\n  }\n} catch (error) {\n  console.log('Error (Create Analysis Prompt - conversation):', error.message);\n  conversation = [];\n}\n\nconst promptsystem = `You are a call center conversation analyzer.\n\nBelow is a JSON array called conversation, where each item represents a speech block with the following structure:\n{\n  \"speaker\": \"speaker_0\" or \"speaker_1\" or \"unknown\",\n  \"text\": \"spoken words\",\n  \"start\": float (start time in seconds),\n  \"end\": float (end time in seconds),\n  \"conversation_index\": integer (order of conversation)\n}\n\nUser provided additional context: \"${userInput}\"\n\nYour task is to analyze this conversation based on the following criteria. Respond with true, false, or \"unknown\" for boolean questions. For the sale value scale, use an integer from 1 to 5 if a sale occurred, otherwise use 0 or null.\n\nInstructions:\n1. Determine which speaker is the call center agent and which is the customer.\n2. Analyze the customer's emotional tone (e.g., calm, angry, excited, confused, etc.).\n3. Assess overall conversation sentiment (positive, negative, neutral).\n4. Identify the main topic (e.g., complaint, sales, technical issue, billing).\n5. Extract the most significant term/keyword (e.g., 'approved', 'canceled', 'offer', 'refund').\n6. Classify the general experience (acceptable, unacceptable, neutral).\n7. Summarize the customer's experience in one word (e.g., frustrating, smooth, excellent).\n8. Was an email address asked for or provided?\n9. Did any positive comments from the customer pass the sale?\n10. Did any negative comments from the customer pass the sale?\n11. Was the price negotiated?\n12. Was the customer addressed politely?\n13. Was the conversation fun/enjoyable?\n14. Were service advantages mentioned?\n15. Were other platforms mentioned?\n16. What was the sale outcome? (sold, not sold, unknown)\n17. If sold, rate the sale value scale (1-5).\n\nPlease respond with a JSON object containing all these fields with appropriate values.`;\n\nconst promtuser = JSON.stringify(conversation, null, 2);\n\nreturn [{\n  json: {\n    callid: callid_from_input,\n    filename: $input.first().json.filename,\n    userInput: userInput,\n    conversation: conversation,\n    promptsys: promptsystem,\n    promtuser: promtuser\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        144
+      ],
+      "id": "f9baf282-8f61-41f1-afca-ac595fd4b408",
+      "name": "Create Analysis Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.promtuser }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.promptsys }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -32,
+        144
+      ],
+      "id": "652c69f6-2b3d-42e7-aee1-4a420e2452c3",
+      "name": "OpenRouter LLM Analysis",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format LLM response (reuse existing logic)\nconst llmInputItem = $input.first();\nlet output = {};\nlet llmError = null;\n\nconst normalizeValue = (val) => {\n  return (val === 'unknown' || val === undefined) ? null : val;\n};\n\nconst defaultFields = {\n  sentiment: null,\n  topic: null,\n  significant_term: null,\n  general_value: null,\n  general_experience: null,\n  email_inquired: null,\n  positive_comment_passed_sale: null,\n  negative_comment_passed_sale: null,\n  price_negotiated: null,\n  customer_addressed_politely: null,\n  conversation_fun: null,\n  service_advantages_mentioned: null,\n  other_platforms_mentioned: null,\n  sale_outcome: null,\n  sale_value_scale: null,\n  asked_if_commenters_known: null,\n  high_profile_advantages_mentioned: null,\n  llm_error_message: null\n};\n\nlet callid = 'unknown';\ntry {\n  callid = $('Process Transcription').item.json.callid || 'unknown';\n} catch (error) {\n  console.log('CallID not found:', error.message);\n}\n\nif (llmInputItem.json.error) {\n  llmError = llmInputItem.json.error.message || 'LLM analysis failed';\n  console.log('LLM Error:', llmError);\n  output = {\n    ...defaultFields,\n    llm_error_message: llmError\n  };\n} else if (llmInputItem.json && llmInputItem.json.text) {\n  let responseText = llmInputItem.json.text;\n\n  if (responseText.startsWith('```json')) {\n    responseText = responseText.slice(7).trim();\n    if (responseText.endsWith('```')) {\n      responseText = responseText.slice(0, -3).trim();\n    }\n  } else if (responseText.startsWith('```')) {\n    responseText = responseText.slice(3).trim();\n    if (responseText.endsWith('```')) {\n      responseText = responseText.slice(0, -3).trim();\n    }\n  }\n\n  try {\n    const parsed = JSON.parse(responseText);\n    output = {\n      sentiment: normalizeValue(parsed.sentiment) || defaultFields.sentiment,\n      topic: normalizeValue(parsed.topic) || defaultFields.topic,\n      significant_term: normalizeValue(parsed.significant_term) || defaultFields.significant_term,\n      general_value: normalizeValue(parsed.general_value) || defaultFields.general_value,\n      general_experience: normalizeValue(parsed.general_experience) || defaultFields.general_experience,\n      email_inquired: normalizeValue(parsed.email_inquired) || defaultFields.email_inquired,\n      positive_comment_passed_sale: normalizeValue(parsed.positive_comment_passed_sale) || defaultFields.positive_comment_passed_sale,\n      negative_comment_passed_sale: normalizeValue(parsed.negative_comment_passed_sale) || defaultFields.negative_comment_passed_sale,\n      price_negotiated: normalizeValue(parsed.price_negotiated) || defaultFields.price_negotiated,\n      customer_addressed_politely: normalizeValue(parsed.customer_addressed_politely) || defaultFields.customer_addressed_politely,\n      conversation_fun: normalizeValue(parsed.conversation_fun) || defaultFields.conversation_fun,\n      service_advantages_mentioned: normalizeValue(parsed.service_advantages_mentioned) || defaultFields.service_advantages_mentioned,\n      other_platforms_mentioned: normalizeValue(parsed.other_platforms_mentioned) || defaultFields.other_platforms_mentioned,\n      sale_outcome: normalizeValue(parsed.sale_outcome) || defaultFields.sale_outcome,\n      sale_value_scale: normalizeValue(parsed.sale_value_scale) || defaultFields.sale_value_scale,\n      asked_if_commenters_known: normalizeValue(parsed.asked_if_commenters_known) || defaultFields.asked_if_commenters_known,\n      high_profile_advantages_mentioned: normalizeValue(parsed.high_profile_advantages_mentioned) || defaultFields.high_profile_advantages_mentioned\n    };\n  } catch (error) {\n    llmError = 'Failed to parse LLM response: ' + error.message;\n    console.log('LLM Response Parse Error:', error.message, 'Response:', responseText);\n    output = {\n      ...defaultFields,\n      llm_error_message: llmError\n    };\n  }\n} else {\n  llmError = 'No text response from LLM';\n  output = {\n    ...defaultFields,\n    llm_error_message: llmError\n  };\n}\n\nreturn [{\n  json: {\n    callid: callid,\n    filename: $('Process Transcription').item.json.filename,\n    userInput: $('Process Transcription').item.json.userInput,\n    ...output\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        144
+      ],
+      "id": "fdcb40ec-58cb-46f4-86b9-88e2abbbb863",
+      "name": "Format LLM Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format response for chat interface\nconst item = $input.first().json;\n\nconst sentimentEmoji = {\n  'positive': '😊',\n  'negative': '😞',\n  'neutral': '😐'\n};\n\nconst saleOutcomeEmoji = {\n  'sold': '✅',\n  'not sold': '❌',\n  'unknown': '❓'\n};\n\nconst formatBoolean = (val) => {\n  if (val === true) return '✓';\n  if (val === false) return '✗';\n  return '❓';\n};\n\nif (item.llm_error_message) {\n  return [{\n    json: {\n      text: `❌ **Call Analysis Failed**\\n\\nAn error occurred while analyzing the call recording:\\n\\n\\`${item.llm_error_message}\\`\\n\\nPlease try again or contact support.`\n    }\n  }];\n}\n\nconst responseText = `🎧 **Call Analysis Complete**\\n\\n**📋 Call ID:** ${item.callid}\\n**📁 File:** ${item.filename}\\n\\n**🎯 Topic:** ${item.topic || 'N/A'}\\n**💭 Sentiment:** ${item.sentiment || 'N/A'} ${sentimentEmoji[item.sentiment?.toLowerCase()] || ''}\\n**⚡ Key Term:** ${item.significant_term || 'N/A'}\\n**📊 Experience:** ${item.general_experience || 'N/A'}\\n**💰 Sale Outcome:** ${item.sale_outcome || 'N/A'} ${saleOutcomeEmoji[item.sale_outcome?.toLowerCase()] || ''}\\n**📈 Sale Value:** ${item.sale_value_scale || 'N/A'}/5\\n\\n**📋 Key Indicators:**\\n• Email Inquired: ${formatBoolean(item.email_inquired)}\\n• Price Negotiated: ${formatBoolean(item.price_negotiated)}\\n• Customer Addressed Politely: ${formatBoolean(item.customer_addressed_politely)}\\n• Conversation Fun: ${formatBoolean(item.conversation_fun)}\\n• Service Advantages: ${formatBoolean(item.service_advantages_mentioned)}\\n• Positive Comment Passed Sale: ${formatBoolean(item.positive_comment_passed_sale)}\\n• Negative Comment Passed Sale: ${formatBoolean(item.negative_comment_passed_sale)}\\n\\n${item.userInput ? `**💬 User Context:** ${item.userInput}\\n\\n` : ''}✨ **Analysis completed successfully!**`;\n\nreturn [{\n  json: {\n    text: responseText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        144
+      ],
+      "id": "696cd4bc-e33b-4eb6-8bd6-6e1dba62e717",
+      "name": "Format Chat Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE_WITH_YOUR_WEBHOOKP",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        688,
+        144
+      ],
+      "id": "4ed3ddd0-799c-4ddb-90a9-f532173f7c4b",
+      "name": "Send Analysis to Slack",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        0,
+        336
+      ],
+      "id": "ea6c5e99-2697-41f1-9ad9-fe9ca5f7d5d6",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "34xjUyKHTxWRXvAJ",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "allowFileUploads": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1504,
+        144
+      ],
+      "id": "bc3d4e92-2607-41d1-abbd-fae40d6d61d0",
+      "name": "When chat message received",
+      "webhookId": "a794ab38-780c-4a1b-89b7-d66f809afaa2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Process Uploaded Audio": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audio Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audio Request": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Audio Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Audio Transcription": {
+      "main": [
+        [
+          {
+            "node": "Process Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Transcription": {
+      "main": [
+        [
+          {
+            "node": "Create Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter LLM Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter LLM Analysis": {
+      "main": [
+        [
+          {
+            "node": "Format LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Format Chat Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Chat Response": {
+      "main": [
+        [
+          {
+            "node": "Send Analysis to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "OpenRouter LLM Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Process Uploaded Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "b3416ad5-f9d2-4d92-90f6-fb92c4b8a6d4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c098c709e16b3b24d6c4818af649ab067f84dea2f1d5f494e7e74ae5b54c8cb9"
+  },
+  "id": "St-evESnJsOKTuQSmUmAb",
+  "tags": []
+}

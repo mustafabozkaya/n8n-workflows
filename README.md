@@ -2,87 +2,164 @@
 
 Production-ready n8n workflow templates for AI automation, logistics, CRM, DevOps, RAG, and social media.
 
-## Workflows
+## Repository Structure
 
-### 1. Lojistik AI Agent — Sipariş & Kargo Takip
-- **File:** `workflows/01-lojistik-ai-agent.json`
-- **Trigger:** Webhook (siparis-olustu)
-- **AI Agent:** LangChain agent with 3 tools (kargo sorgula, depo stok, priced hesapla)
-- **Features:** Duplicate prevention, structured output parser, error handler, Slack notification
-- **Use case:** Sipariş geldiğinde AI agent kargo oluşturur, depo stokunu kontrol eder, priced hesaplayıp Slack bildirimi gönderir
+- `workflows/` — Ready-to-import production workflows, organized by category
 
-### 2. CRM Lead → Google Sheets → AI Rapor
-- **File:** `workflows/02-crm-lead-ai-rapor.json`
-- **Trigger:** Webhook (crm-lead)
-- **AI Agent:** Lead skorlama agent
-- **Features:** Duplicate prevention, Google Sheets entegrasyonu, AI lead scoring, Slack bildirimi
-- **Use case:** CRM'den gelen lead'ler Google Sheets'e kaydedilir, AI skorlanır, sales team'e bildirilir
+- `analysis/` — Duplicate/issue workflows identified during portfolio audit (19 of 80)
 
-### 3. GitHub PR → AI Code Review → Slack
-- **File:** `workflows/03-github-ai-code-review.json`
-- **Trigger:** Webhook (github-pr)
-- **AI Agent:** Code review agent
-- **Features:** PR opened filter, diff fetch, AI review, PR comment, Slack notification
-- **Use case:** GitHub PR açıldığında AI code review yapar, yorum ekler, Slack'da bildiririr
 
-### 4. RAG Pipeline — Belge → Vektör → AI Cevap
-- **File:** `workflows/04-rag-pipeline.json`
-- **Trigger:** Webhook (rag-soru)
-- **AI Agent:** RAG agent with document search + citation tools
-- **Features:** Input validation (prompt injection filter), embedding → Qdrant vector search, context re-ranking, structured output with sources + confidence, logging
-- **Use case:** Şirket belgelerine dayalı AI cevap sistemi. Qdrant vektör veritabanında arama, re-ranking, kaynak gösterme
+## Categories
 
-### 5. Multi-Agent Orchestration — Research → Writer → Editor
-- **File:** `workflows/05-multi-agent-orchestration.json`
-- **Trigger:** Webhook (multi-agent)
-- **AI Agents:** Researcher → Writer → Editor (3 agent zinciri)
-- **Features:** Task tracking, web + academic search tools, merge node, structured output with agent chain + quality score, Slack notification
-- **Use case:** Research agent arama yapar → Writer agent taslak yazar → Editor agent düzenler. 3 agentli zincirleme orchestration
+| Category | Production | Analysis | Description |
+|---|---|---|---|
+| `automation` | 3 | 1 | Daily AI news, data sync between apps, Google Sheets to Meta |
+| `call-center` | 8 | 4 | STT, LLM analysis, S3 upload, Slack/Telegram notifications for call centers |
+| `content` | 2 | 0 | Resume analysis, LinkedIn post generation |
+| `database` | 14 | 10 | PostgreSQL/MySQL sync, maps upload, infrastructure setup, voice analysis |
+| `dev-tools` | 8 | 1 | n8n Developer Agent, Workflow Builder, code execution, file upload |
+| `lead-gen` | 6 | 1 | Instantly lead generation, GMB radar, Google Maps scraping |
+| `media` | 2 | 1 | AI video generation, Flux image generation, ElevenLabs TTS |
+| `multi-agent` | 3 | 0 | Multi-agent orchestration, voice assistants, collaborative research |
+| `other` | 12 | 0 | Chat triggers, webhooks, utility workflows |
+| `rag-ai` | 3 | 1 | RAG pipelines, vector embeddings, knowledge stores, document processing |
 
-### 6. Social Media Content Pipeline — Blog → Multi-Platform
-- **File:** `workflows/06-social-media-content.json`
-- **Trigger:** Webhook (blog-publish)
-- **AI Agent:** Content agent with hashtag + image generation tools
-- **Features:** Content extraction, AI content generation, split to LinkedIn/X/Telegram, structured output, character count, logging
-- **Use case:** Blog yazısı public olduğunda AI agent LinkedIn, X, Telegram için optimize edilmiş postlar üretir
+## Production Workflows
+
+
+### Automation
+
+- 📰 Daily AI Summary
+- Sync new data between two apps
+- Google Sheets to Meta Business Daily Data Sync
+
+### Call Center
+
+- Call Center Analysis with OPENROUTER_LLM
+- Slack Call Center Analysis with LLM
+- Slack Call Center Analysis2
+- IMPROVED CALL CENTER S3 UPLOAD
+- Slack Call Center Analysis
+- Slack Call Center Analysis with LLM
+- CALL CENTER S3 UPLOAD
+- Workflow 1: STT & Transkript İşleme
+
+### Content
+
+- REsume Analysis
+- Generate AI-Powered LinkedIn Posts with Google Gemini and Gen-Imager
+
+### Database
+
+- CALL_CENTER_OLLAMA_LLM_AGENT_ANALYSİS (May 29 at 10:09:55)
+- CALL_CENTER_MULTİ_AGENT_ANALYSİS_ADVANCED
+- Workflow2_LLM Analysis_deepseek/deepseek-r1-0528-qwen)
+- CALL_CENTER_AGENT
+- CALL_CENTER_AGENT_analyze
+- CALL_CENTER_3_SERİAL_LLM_AGENT_ANALYSİS(May 30 at 11:11:34)
+- CALL_CENTER_S3_Analysys
+- send data postgres
+- End to end Cali Voice Analysis Agent
+- upload_Maps_screenshots
+- PostgreSQL to MySQL Sync (Manual Setup)
+- Infrastructure Setup and Validation Workflow
+- Infrastructure Setup and Validation Workflow
+- AGENT_CECK_NODES
+
+### Dev Tools
+
+- Workflow Builder
+- N8n Developer agent (finalquery, sources)
+- Enhanced n8n Developer Agent
+- N8n Developer agent with upload Execute node
+- n8n Developer Agent - File Upload Processor
+- Enhanced Workflow Builder
+- n8n Developer Agent (File Upload)
+- Advanced n8n workflow agent
+
+### Lead Gen
+
+- GMB Radar Report Scraper (Sep 1 at 20:48:28)
+- GMB Radar Report Scraper
+- Google Maps Email Scrapinng
+- INSTANTLY_lead_advanced_generate_with_olama_gender
+- INSTANTLY_lead_advanced_generate_openaı_gender
+- lead_advanced_generate
+
+### Media
+
+- Flux generation respond with Premium Page
+- AI Video Generator
+
+### Multi Agent
+
+- Voice assistant agent
+- Multi Agent System
+- Collaborative Research and Fact-Checking Report Generator
+
+### Other
+
+- Chat Trigger Call Analysis with OpenRouter
+- Chat Trigger Call Analysis with OpenRouter
+- ?
+- My workflow
+- İNstantly
+- AI Agent with Webhook for Open WebUI
+- Email Agent
+- LLM Multi-Agent
+- Translate audio using AI
+- Create json file
+- Firecrawl Extract agent
+- Generating Hyper-Personal
+
+### Rag Ai
+
+- Multi-Source Document Processing with Vector Embeddings and AI Chatbot
+- Demo: RAG in n8n
+- Knowledge store agent (with Google Drive)
+
+## Analysis (Duplicate / Issue Workflows)
+
+These 19 workflows were identified during portfolio audit and excluded from production:
+
+- **Exact duplicates**: 2 copies of `Slack Call Center Analysis2`
+
+- **Near-duplicates**: 11 groups with identical node type sets
+
+- **Missing trigger**: 3 workflows without any trigger node
+
+- **Empty**: `Daily AI News to Telegram` has 0 nodes
+
+- **Missing credentials**: 21 workflows reference no credential configurations
+
 
 ## Quick Start
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/mustafabozkaya/n8n-workflows.git
 cd n8n-workflows
 
-# 2. Import a workflow into n8n
+# Import a workflow into n8n
+
 # Open n8n → Workflows → Import from File → Select any JSON from workflows/
 
-# 3. Configure credentials
+
+# Configure credentials
+
 # - OpenAI API key (for AI agent nodes)
-# - Google Sheets API (for CRM workflow)
-# - GitHub token (for code review workflow)
-# - Slack webhook (for notifications)
-# - LinkedIn API (for social media workflow)
-# - Twitter/X API (for social media workflow)
-# - Telegram bot token (for social media workflow)
-# - Qdrant API (for RAG workflow)
 
-# 4. Activate
+# - Anthropic API key (for Claude nodes)
+
+# - Google Gemini API key
+
+# - DeepSeek API key
+
+# - Ollama (local or remote)
+
+# - Slack webhook URL
+
+# - Telegram bot token
+
+# - AWS S3 credentials
+
 ```
-
-## Requirements
-
-- n8n instance (self-hosted or cloud)
-- OpenAI API key (or compatible LLM provider)
-- GitHub token (for code review workflow)
-- Google Sheets API (for CRM workflow)
-- Slack webhook URL
-- Qdrant vector DB (for RAG workflow)
-- LinkedIn, Twitter/X, Telegram APIs (for social media workflow)
-
-## Tags
-
-`lojistik` `ai-agent` `automation` `kargo` `siparis` `crm` `lead` `github` `code-review` `rag` `vector-db` `multi-agent` `orchestration` `social-media` `content`
-
-## License
-
-MIT

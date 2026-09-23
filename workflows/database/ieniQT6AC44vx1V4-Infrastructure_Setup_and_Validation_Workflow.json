@@ -1,0 +1,1088 @@
+{
+  "name": "Infrastructure Setup and Validation Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1320,
+        80
+      ],
+      "id": "006a4530-c2f0-4623-8a4b-9c4df4d150f8"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\nconsole.log(`🔄 Infrastructure Setup and Validation Workflow started at ${now}`);\n\n// Initialize tracking variables\nreturn [{\n  json: {\n    timestamp: now,\n    workflow_version: \"1.0.0\",\n    validation_results: {\n      database: {\n        tables_checked: [],\n        tables_created: [],\n        columns_added: [],\n        errors: []\n      },\n      s3: {\n        bucket_exists: false,\n        folders_checked: [],\n        folders_created: [],\n        errors: []\n      }\n    }\n  }\n}];"
+      },
+      "name": "Workflow Initialization",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1100,
+        80
+      ],
+      "id": "c144ca0f-8d33-4315-a623-97d2e0d11155"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 1 AS connection_test",
+        "options": {}
+      },
+      "name": "Database Connection Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -880,
+        80
+      ],
+      "id": "06b05523-4212-484b-b9b2-416562629fb4",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT table_name \nFROM information_schema.tables \nWHERE table_schema = 'public' \nAND table_name IN ('llm_analysis', 'calls', 'pipe_response', 'agent_results')\n",
+        "options": {}
+      },
+      "name": "Database Table Existence Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -640,
+        60
+      ],
+      "id": "801638ba-cf31-49dc-a83e-687b22da45ee",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing tables from previous node\nconst existingTables = $input.all().map(item => item.json.table_name);\n\n// Define required tables\nconst requiredTables = ['llm_analysis', 'calls', 'pipe_response', 'agent_results'];\n\n// Find missing tables\nconst missingTables = requiredTables.filter(table => !existingTables.includes(table));\n\n// Update validation results\nconst validationResults = $node['Workflow Initialization'].json.validation_results;\nvalidationResults.database.tables_checked = requiredTables;\n\n// Generate SQL for missing tables\nlet createTableSQL = '';\n\nif (missingTables.includes('llm_analysis')) {\n  createTableSQL += `\n  CREATE TABLE IF NOT EXISTS public.llm_analysis (\n    id SERIAL PRIMARY KEY,\n    call_id VARCHAR(100) UNIQUE NOT NULL,\n    sentiment VARCHAR(50),\n    topic VARCHAR(200),\n    significant_term VARCHAR(100),\n    general_value VARCHAR(50),\n    general_experience VARCHAR(50),\n    email_inquired VARCHAR(10),\n    positive_comment_passed_sale VARCHAR(10),\n    negative_comment_passed_sale VARCHAR(10),\n    price_negotiated VARCHAR(10),\n    customer_addressed_politely VARCHAR(10),\n    conversation_fun VARCHAR(10),\n    service_advantages_mentioned VARCHAR(10),\n    other_platforms_mentioned VARCHAR(10),\n    sale_outcome VARCHAR(50),\n    sale_value_scale INTEGER,\n    asked_if_commenters_known VARCHAR(10),\n    high_profile_advantages_mentioned VARCHAR(10),\n    llm_error_message TEXT,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    analysis_method VARCHAR(50) DEFAULT 'multi_agent',\n    agent_count INTEGER DEFAULT 5,\n    coordination_confidence VARCHAR(20),\n    agent_conflicts_resolved INTEGER DEFAULT 0,\n    language_detected VARCHAR(10)\n  );\n  `;\n  validationResults.database.tables_created.push('llm_analysis');\n}\n\nif (missingTables.includes('calls')) {\n  createTableSQL += `\n  CREATE TABLE IF NOT EXISTS public.calls (\n    id SERIAL PRIMARY KEY,\n    callid VARCHAR(100) UNIQUE NOT NULL,\n    recording_url VARCHAR(500),\n    billsec INTEGER,\n    processed BOOLEAN DEFAULT FALSE,\n    skip BOOLEAN DEFAULT FALSE,\n    skip_reason VARCHAR(255),\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n  );\n  `;\n  validationResults.database.tables_created.push('calls');\n}\n\nif (missingTables.includes('pipe_response')) {\n  createTableSQL += `\n  CREATE TABLE IF NOT EXISTS public.pipe_response (\n    id SERIAL PRIMARY KEY,\n    callid VARCHAR(100) UNIQUE NOT NULL,\n    transcript_s3_url VARCHAR(500),\n    analysis_s3_url VARCHAR(500),\n    llm_processed BOOLEAN DEFAULT FALSE,\n    llm_error TEXT,\n    stt_error TEXT,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n  );\n  `;\n  validationResults.database.tables_created.push('pipe_response');\n}\n\nif (missingTables.includes('agent_results')) {\n  createTableSQL += `\n  CREATE TABLE IF NOT EXISTS public.agent_results (\n    id SERIAL PRIMARY KEY,\n    callid VARCHAR(100) NOT NULL,\n    agent_type VARCHAR(50) NOT NULL,\n    agent_result JSONB,\n    processing_time_ms INTEGER,\n    error_occurred BOOLEAN DEFAULT FALSE,\n    error_message TEXT,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    CONSTRAINT unique_call_agent UNIQUE (callid, agent_type)\n  );\n  `;\n  validationResults.database.tables_created.push('agent_results');\n}\n\nreturn [{\n  json: {\n    missingTables,\n    existingTables,\n    createTableSQL,\n    validationResults\n  }\n}];"
+      },
+      "name": "Table Existence Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        80
+      ],
+      "id": "557f7a1d-d3f5-430a-9e84-0ff1b9ccd13d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.missingTables.length}}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "name": "Create Missing Tables?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        80
+      ],
+      "id": "b14b0aed-9f1a-4a3a-a67d-35ba79f5dfe1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.createTableSQL}}",
+        "options": {}
+      },
+      "name": "Execute Table Creation SQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2d2dab01-b58f-41d7-b481-5964aec4c3e8",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\n\n// Update validation results\nconst validationResults = $node['Table Existence Processing'].json.validationResults;\n\nif (error) {\n  validationResults.database.errors.push({\n    message: error.message,\n    timestamp: new Date().toISOString()\n  });\n  console.log(`❌ Error creating tables: ${error.message}`);\n} else {\n  console.log(`✅ Successfully created missing tables: ${$node['Table Existence Processing'].json.missingTables.join(', ')}`);\n}\n\nreturn [{\n  json: {\n    validationResults,\n    existingTables: $node['Table Existence Processing'].json.existingTables\n  }\n}];"
+      },
+      "name": "Table Creation Error Handling",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "2184f8f7-35d8-424f-81b4-d1fd103364a8"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get column information for llm_analysis table\nSELECT column_name, data_type \nFROM information_schema.columns \nWHERE table_schema = 'public' \nAND table_name = 'llm_analysis';",
+        "options": {}
+      },
+      "name": "Check llm_analysis Columns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        80
+      ],
+      "id": "72c98a57-296e-48a8-9ea3-f20a09e9780d",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing columns\nconst existingColumns = $input.all().map(item => item.json.column_name);\n\n// Define required columns for llm_analysis\nconst requiredColumns = [\n  'id', 'callid', 'sentiment', 'topic', 'significant_term', 'general_value',\n  'general_experience', 'email_inquired', 'positive_comment_passed_sale',\n  'negative_comment_passed_sale', 'price_negotiated', 'customer_addressed_politely',\n  'conversation_fun', 'service_advantages_mentioned', 'other_platforms_mentioned',\n  'sale_outcome', 'sale_value_scale', 'asked_if_commenters_known',\n  'high_profile_advantages_mentioned', 'llm_error_message', 'created_at',\n  'updated_at', 'analysis_method', 'agent_count', 'coordination_confidence',\n  'agent_conflicts_resolved', 'language_detected'\n];\n\n// Find missing columns\nconst missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));\n\n// Generate SQL to add missing columns\nlet alterTableSQL = '';\n\nif (missingColumns.includes('coordination_confidence')) {\n  alterTableSQL += `ALTER TABLE public.llm_analysis ADD COLUMN IF NOT EXISTS coordination_confidence VARCHAR(20);\\n`;\n}\n\nif (missingColumns.includes('agent_conflicts_resolved')) {\n  alterTableSQL += `ALTER TABLE public.llm_analysis ADD COLUMN IF NOT EXISTS agent_conflicts_resolved INTEGER DEFAULT 0;\\n`;\n}\n\nif (missingColumns.includes('language_detected')) {\n  alterTableSQL += `ALTER TABLE public.llm_analysis ADD COLUMN IF NOT EXISTS language_detected VARCHAR(10);\\n`;\n}\n\n// Check for other missing columns and add them with appropriate data types\nmissingColumns.forEach(col => {\n  if (!['coordination_confidence', 'agent_conflicts_resolved', 'language_detected'].includes(col)) {\n    let dataType;\n    \n    if (['id', 'sale_value_scale', 'agent_count'].includes(col)) {\n      dataType = 'INTEGER';\n    } else if (['created_at', 'updated_at'].includes(col)) {\n      dataType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';\n    } else if (['llm_error_message'].includes(col)) {\n      dataType = 'TEXT';\n    } else {\n      dataType = 'VARCHAR(100)';\n    }\n    \n    alterTableSQL += `ALTER TABLE public.llm_analysis ADD COLUMN IF NOT EXISTS ${col} ${dataType};\\n`;\n  }\n});\n\n// Update validation results\nlet validationResults;\n// Check if Table Creation Error Handling node executed\nlet tcErrorNode = $(\"Table Creation Error Handling\");\nlet teProcessNode = $(\"Table Existence Processing\");\nif (tcErrorNode && tcErrorNode.json && tcErrorNode.json.validationResults) {\n  validationResults = tcErrorNode.json.validationResults;\n} else if (teProcessNode && teProcessNode.json && teProcessNode.json.validationResults) {\n  validationResults = teProcessNode.json.validationResults;\n} else {\n  validationResults = null; // Fallback if both nodes missing/unexecuted\n}\n\nconsole.log(`📋 Checking llm_analysis table columns`);\nconsole.log(`📋 Missing columns: ${missingColumns.join(', ') || 'none'}`);\n\nreturn [{\n  json: {\n    table: 'llm_analysis',\n    existingColumns,\n    missingColumns,\n    alterTableSQL,\n    validationResults\n  }\n}];"
+      },
+      "name": "llm_analysis Column Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        80
+      ],
+      "id": "40b47aa3-e99d-4423-aae3-ec3b2198a543"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get column information for calls table\nSELECT column_name, data_type \nFROM information_schema.columns \nWHERE table_schema = 'public' \nAND table_name = 'calls';",
+        "options": {}
+      },
+      "name": "Check calls Columns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        880,
+        80
+      ],
+      "id": "ac37ad9e-7995-42ac-b24f-079336db57cb",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing columns\nconst existingColumns = $input.all().map(item => item.json.column_name);\n\n// Define required columns for calls\nconst requiredColumns = [\n  'id', 'callid', 'recording_url', 'billsec', 'processed', 'skip', \n  'skip_reason', 'created_at', 'updated_at'\n];\n\n// Find missing columns\nconst missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));\n\n// Generate SQL to add missing columns\nlet alterTableSQL = '';\n\n// Ensure extension for UUID generation exists\nif (missingColumns.includes('id')) {\n  alterTableSQL += `CREATE EXTENSION IF NOT EXISTS \"pgcrypto\";\\n`;\n}\n\nif (missingColumns.includes('skip')) {\n  alterTableSQL += `ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS skip BOOLEAN DEFAULT FALSE;\\n`;\n}\n\nif (missingColumns.includes('skip_reason')) {\n  alterTableSQL += `ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS skip_reason VARCHAR(255);\\n`;\n}\n\n// Check for other missing columns and add them with appropriate data types\nmissingColumns.forEach(col => {\n  if (!['skip', 'skip_reason'].includes(col)) {\n    let dataType;\n\n    if (col === 'id') {\n      dataType = 'UUID PRIMARY KEY DEFAULT gen_random_uuid()';\n    } else if (col === 'billsec') {\n      dataType = 'INTEGER';\n    } else if (col === 'processed') {\n      dataType = 'BOOLEAN DEFAULT FALSE';\n    } else if (['created_at', 'updated_at'].includes(col)) {\n      dataType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';\n    } else {\n      dataType = 'VARCHAR(500)';\n    }\n\n    alterTableSQL += `ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS ${col} ${dataType};\\n`;\n  }\n});\n\n// Update validation results\nconst validationResults = $node['llm_analysis Column Processing'].json.validationResults;\n\nconsole.log(`📋 Checking calls table columns`);\nconsole.log(`📋 Missing columns: ${missingColumns.join(', ') || 'none'}`);\n\nreturn [{\n  json: {\n    table: 'calls',\n    existingColumns,\n    missingColumns,\n    alterTableSQL,\n    validationResults,\n    previousAlterSQL: $node['llm_analysis Column Processing'].json.alterTableSQL\n  }\n}];"
+      },
+      "name": "calls Column Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        80
+      ],
+      "id": "154b8ce5-544d-4909-85b2-15d4e8f66fff"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get column information for pipe_response table\nSELECT column_name, data_type \nFROM information_schema.columns \nWHERE table_schema = 'public' \nAND table_name = 'pipe_response';",
+        "options": {}
+      },
+      "name": "Check pipe_response Columns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1320,
+        80
+      ],
+      "id": "dbae3b67-86e8-46a4-bac0-6332e33d0521",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing columns\nconst existingColumns = $input.all().map(item => item.json.column_name);\n\n// Define required columns for pipe_response\nconst requiredColumns = [\n  'id', 'callid', 'transcript_s3_url', 'analysis_s3_url', 'llm_processed',\n  'llm_error', 'stt_error', 'created_at', 'updated_at'\n];\n\n// Find missing columns\nconst missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));\n\n// Generate SQL to add missing columns\nlet alterTableSQL = '';\n\nif (missingColumns.includes('llm_error')) {\n  alterTableSQL += `ALTER TABLE public.pipe_response ADD COLUMN IF NOT EXISTS llm_error TEXT;\\n`;\n}\n\nif (missingColumns.includes('stt_error')) {\n  alterTableSQL += `ALTER TABLE public.pipe_response ADD COLUMN IF NOT EXISTS stt_error TEXT;\\n`;\n}\n\n// Check for other missing columns and add them with appropriate data types\nmissingColumns.forEach(col => {\n  if (!['llm_error', 'stt_error'].includes(col)) {\n    let dataType;\n    \n    if (['id'].includes(col)) {\n      dataType = 'INTEGER';\n    } else if (['llm_processed'].includes(col)) {\n      dataType = 'BOOLEAN DEFAULT FALSE';\n    } else if (['created_at', 'updated_at'].includes(col)) {\n      dataType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';\n    } else {\n      dataType = 'VARCHAR(500)';\n    }\n    \n    alterTableSQL += `ALTER TABLE public.pipe_response ADD COLUMN IF NOT EXISTS ${col} ${dataType};\\n`;\n  }\n});\n\n// Update validation results\nconst validationResults = $node['calls Column Processing'].json.validationResults;\n\nconsole.log(`📋 Checking pipe_response table columns`);\nconsole.log(`📋 Missing columns: ${missingColumns.join(', ') || 'none'}`);\n\nreturn [{\n  json: {\n    table: 'pipe_response',\n    existingColumns,\n    missingColumns,\n    alterTableSQL,\n    validationResults,\n    previousAlterSQL: $node['calls Column Processing'].json.previousAlterSQL + $node['calls Column Processing'].json.alterTableSQL\n  }\n}];"
+      },
+      "name": "pipe_response Column Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        80
+      ],
+      "id": "039f697e-2675-4b3c-b7b9-72cfc26f78de"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Get column information for agent_results table\nSELECT column_name, data_type \nFROM information_schema.columns \nWHERE table_schema = 'public' \nAND table_name = 'agent_results';",
+        "options": {}
+      },
+      "name": "Check agent_results Columns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1760,
+        80
+      ],
+      "id": "05a7798d-653a-451b-8d1c-a2b1ca96b93e",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing columns\nconst existingColumns = $input.all().map(item => item.json.column_name);\n\n// Define required columns for agent_results\nconst requiredColumns = [\n  'id', 'callid', 'agent_type', 'agent_result', 'processing_time_ms',\n  'error_occurred', 'error_message', 'created_at'\n];\n\n// Find missing columns\nconst missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));\n\n// Generate SQL to add missing columns\nlet alterTableSQL = '';\n\nif (missingColumns.includes('error_occurred')) {\n  alterTableSQL += `ALTER TABLE public.agent_results ADD COLUMN IF NOT EXISTS error_occurred BOOLEAN DEFAULT FALSE;\\n`;\n}\n\nif (missingColumns.includes('error_message')) {\n  alterTableSQL += `ALTER TABLE public.agent_results ADD COLUMN IF NOT EXISTS error_message TEXT;\\n`;\n}\n\n// Check for other missing columns and add them with appropriate data types\nmissingColumns.forEach(col => {\n  if (!['error_occurred', 'error_message'].includes(col)) {\n    let dataType;\n    \n    if (['id', 'processing_time_ms'].includes(col)) {\n      dataType = 'INTEGER';\n    } else if (['agent_result'].includes(col)) {\n      dataType = 'JSONB';\n    } else if (['created_at'].includes(col)) {\n      dataType = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';\n    } else {\n      dataType = 'VARCHAR(100)';\n    }\n    \n    alterTableSQL += `ALTER TABLE public.agent_results ADD COLUMN IF NOT EXISTS ${col} ${dataType};\\n`;\n  }\n});\n\n// Combine all alter table SQL statements\nconst combinedAlterSQL = $node['pipe_response Column Processing'].json.previousAlterSQL + \n                        $node['pipe_response Column Processing'].json.alterTableSQL + \n                        alterTableSQL;\n\n// Update validation results\nconst validationResults = $node['pipe_response Column Processing'].json.validationResults;\n\n// Check if we have any columns to add\nconst hasColumnsToAdd = combinedAlterSQL.trim().length > 0;\n\nconsole.log(`📋 Checking agent_results table columns`);\nconsole.log(`📋 Missing columns: ${missingColumns.join(', ') || 'none'}`);\n\nreturn [{\n  json: {\n    hasColumnsToAdd,\n    combinedAlterSQL,\n    validationResults\n  }\n}];"
+      },
+      "name": "agent_results Column Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        80
+      ],
+      "id": "72f12bf8-e003-4bb0-a9a7-104247b9d31c"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{$json.combinedAlterSQL}}",
+        "options": {}
+      },
+      "name": "Execute Column Addition SQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2460,
+        -60
+      ],
+      "id": "8e1415c9-3f73-49b4-8552-01526728bddd",
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\n\n// Update validation results\nconst validationResults = $('agent_results Column Processing').first().json.validationResults;\n\nif (error) {\n  validationResults.database.errors.push({\n    message: `Column addition error: ${error.message}`,\n    timestamp: new Date().toISOString()\n  });\n  console.log(`❌ Error adding columns: ${error.message}`);\n} else {\n  console.log(`✅ Successfully added missing columns to tables`);\n}\n\nreturn [{\n  json: {\n    validationResults\n  }\n}];"
+      },
+      "name": "Column Addition Error Handling",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        -60
+      ],
+      "id": "8ffb8988-71ef-4d64-9c3e-836005437593"
+    },
+    {
+      "parameters": {
+        "resource": "bucket",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "name": "S3 Bucket Existence Check",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        80
+      ],
+      "id": "5c320d24-fcbb-411d-8a3c-46a264f2f4fa",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\n\n// Update validation results\nlet validationResults;\nif ($node['Column Addition Error Handling']) {\n  validationResults = $node['Column Addition Error Handling'].json.validationResults;\n} else if ($node['agent_results Column Processing']) {\n  validationResults = $node['agent_results Column Processing'].json.validationResults;\n} else {\n  validationResults = $node['Table Existence Processing'].json.validationResults;\n}\n\nif (error) {\n  // Bucket doesn't exist or access denied\n  validationResults.s3.errors.push({\n    message: `Bucket check error: ${error.message}`,\n    timestamp: new Date().toISOString()\n  });\n  validationResults.s3.bucket_exists = false;\n  console.log(`❌ S3 bucket 'callintech' check failed: ${error.message}`);\n} else {\n  // Bucket exists\n  validationResults.s3.bucket_exists = true;\n  console.log(`✅ S3 bucket 'callintech' exists`);\n}\n\nreturn [{\n  json: {\n    validationResults,\n    bucketExists: validationResults.s3.bucket_exists\n  }\n}];"
+      },
+      "name": "S3 Bucket Existence Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        80
+      ],
+      "id": "d47a5b84-3c21-4749-aacb-4bfb5f633aec"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.bucketExists}}"
+            }
+          ]
+        }
+      },
+      "name": "Create S3 Bucket?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3520,
+        80
+      ],
+      "id": "ce2eebd1-8d19-4b4a-98a4-e8f03542a8e9"
+    },
+    {
+      "parameters": {},
+      "name": "Execute S3 Bucket Creation",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ],
+      "id": "a066161c-ffba-4e6f-92b2-10519da287fa",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\n\n// Update validation results\nconst validationResults = $node['S3 Bucket Existence Processing'].json.validationResults;\n\nif (error) {\n  validationResults.s3.errors.push({\n    message: `Bucket creation error: ${error.message}`,\n    timestamp: new Date().toISOString()\n  });\n  console.log(`❌ Error creating S3 bucket 'callintech': ${error.message}`);\n} else {\n  validationResults.s3.bucket_exists = true;\n  console.log(`✅ Successfully created S3 bucket 'callintech'`);\n}\n\nreturn [{\n  json: {\n    validationResults\n  }\n}];"
+      },
+      "name": "S3 Bucket Creation Error Handling",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ],
+      "id": "95b11c72-2c5c-4a8c-9df2-e12ef1127a07"
+    },
+    {
+      "parameters": {
+        "operation": "list"
+      },
+      "name": "S3 Folder Structure Check",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        80
+      ],
+      "id": "9a1f31a9-2eb5-4ffb-baf2-7c47be22fa5c",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing folders from previous node\nconst s3Objects = $input.all().map(item => item.json);\n\n// Extract folder names (objects ending with '/')\nconst existingFolders = s3Objects\n  .filter(obj => obj.Key && obj.Key.endsWith('/'))\n  .map(obj => obj.Key);\n\n// Define required folders\nconst requiredFolders = [\n  'recordings/',\n  'transcripts/',\n  'analysis/',\n  'agent_results/'\n];\n\n// Find missing folders\nconst missingFolders = requiredFolders.filter(folder => !existingFolders.includes(folder));\n\n// Update validation results\nlet validationResults;\nif ($node['S3 Bucket Creation Error Handling']) {\n  validationResults = $node['S3 Bucket Creation Error Handling'].json.validationResults;\n} else {\n  validationResults = $node['S3 Bucket Existence Processing'].json.validationResults;\n}\n\nvalidationResults.s3.folders_checked = requiredFolders;\n\nconsole.log(`📁 Existing folders: ${existingFolders.join(', ') || 'none'}`);\nconsole.log(`📁 Missing folders: ${missingFolders.join(', ') || 'none'}`);\n\nreturn [{\n  json: {\n    existingFolders,\n    missingFolders,\n    validationResults\n  }\n}];"
+      },
+      "name": "S3 Folder Structure Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        80
+      ],
+      "id": "f15abff1-e1b6-467a-8251-66ccd9b373a5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.missingFolders.length}}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Create Missing S3 Folders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        4620,
+        80
+      ],
+      "id": "5dd1662f-b649-4f5d-a731-bed5e2ce68fd"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Split Missing Folders",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        0
+      ],
+      "id": "0bc00a96-7d4a-48b2-ba6f-c7440d5d221b"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileName": "={{$json}}",
+        "binaryData": false,
+        "additionalFields": {}
+      },
+      "name": "Execute S3 Folder Creation",
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ],
+      "id": "391db82d-c905-4ddc-8c58-65f144ada162",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for errors in the previous node\nconst error = $input.first()?.error;\nconst folder = $input.first()?.json;\n\n// Update validation results\nconst validationResults = $node['S3 Folder Structure Processing'].json.validationResults;\n\nif (error) {\n  validationResults.s3.errors.push({\n    folder,\n    message: `Folder creation error: ${error.message}`,\n    timestamp: new Date().toISOString()\n  });\n  console.log(`❌ Error creating S3 folder '${folder}': ${error.message}`);\n} else {\n  validationResults.s3.folders_created.push(folder);\n  console.log(`✅ Successfully created S3 folder '${folder}'`);\n}\n\nreturn [{\n  json: {\n    folder,\n    validationResults\n  }\n}];"
+      },
+      "name": "S3 Folder Creation Error Handling",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        0
+      ],
+      "id": "c5127f8f-09ce-480d-829f-755f404a4fff"
+    },
+    {
+      "parameters": {},
+      "name": "Wait for All Folder Creations",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        5500,
+        0
+      ],
+      "webhookId": "wait-for-folder-creations",
+      "id": "dda6ff19-76c1-4afb-a740-343cb90215cb"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the latest validation results\nlet validationResults;\n\nif ($node['Wait for All Folder Creations']) {\n  // If we created folders, get results from there\n  const folderResults = $input.all();\n  validationResults = folderResults[folderResults.length - 1].json.validationResults;\n} else if ($node['S3 Folder Structure Processing']) {\n  // If we didn't need to create folders\n  validationResults = $node['S3 Folder Structure Processing'].json.validationResults;\n} else {\n  // Fallback\n  validationResults = $node['S3 Bucket Existence Processing'].json.validationResults;\n}\n\n// Calculate overall validation status\nconst dbErrors = validationResults.database.errors.length;\nconst s3Errors = validationResults.s3.errors.length;\nconst totalErrors = dbErrors + s3Errors;\n\nconst dbTablesCreated = validationResults.database.tables_created.length;\nconst s3FoldersCreated = validationResults.s3.folders_created.length;\nconst totalCreated = dbTablesCreated + s3FoldersCreated;\n\nconst validationStatus = totalErrors === 0 ? 'success' : 'warning';\n\n// Generate summary\nconst summary = {\n  timestamp: new Date().toISOString(),\n  status: validationStatus,\n  database: {\n    tables_checked: validationResults.database.tables_checked,\n    tables_created: validationResults.database.tables_created,\n    columns_added: validationResults.database.columns_added || [],\n    errors: validationResults.database.errors\n  },\n  s3: {\n    bucket_exists: validationResults.s3.bucket_exists,\n    folders_checked: validationResults.s3.folders_checked,\n    folders_created: validationResults.s3.folders_created,\n    errors: validationResults.s3.errors\n  },\n  total_errors: totalErrors,\n  total_created: totalCreated\n};\n\nconsole.log(`🔄 Infrastructure Setup and Validation Workflow completed with status: ${validationStatus}`);\nconsole.log(`📊 Summary: ${totalCreated} resources created, ${totalErrors} errors encountered`);\n\nreturn [{\n  json: {\n    summary\n  }\n}];"
+      },
+      "name": "Generate Validation Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        80
+      ],
+      "id": "37a87448-4e3f-48b2-af9f-d8a9e6038fb5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get summary from previous node\nconst { summary } = $input.first().json;\n\n// Format a detailed report\nconst report = `\n# Infrastructure Setup and Validation Report\n\n## Summary\n- **Timestamp:** ${summary.timestamp}\n- **Status:** ${summary.status.toUpperCase()}\n- **Total Resources Created:** ${summary.total_created}\n- **Total Errors:** ${summary.total_errors}\n\n## Database Validation\n- **Tables Checked:** ${summary.database.tables_checked.join(', ')}\n- **Tables Created:** ${summary.database.tables_created.length > 0 ? summary.database.tables_created.join(', ') : 'None'}\n- **Columns Added:** ${summary.database.columns_added.length > 0 ? summary.database.columns_added.join(', ') : 'None'}\n- **Errors:** ${summary.database.errors.length > 0 ? JSON.stringify(summary.database.errors, null, 2) : 'None'}\n\n## S3 Validation\n- **Bucket Exists:** ${summary.s3.bucket_exists ? 'Yes' : 'No'}\n- **Folders Checked:** ${summary.s3.folders_checked.join(', ')}\n- **Folders Created:** ${summary.s3.folders_created.length > 0 ? summary.s3.folders_created.join(', ') : 'None'}\n- **Errors:** ${summary.s3.errors.length > 0 ? JSON.stringify(summary.s3.errors, null, 2) : 'None'}\n`;\n\nconsole.log('📝 Generated validation report');\n\nreturn [{\n  json: {\n    report,\n    summary\n  }\n}];"
+      },
+      "name": "Format Validation Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5940,
+        80
+      ],
+      "id": "1906e245-be5a-4124-9bad-82998ffe8fd3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.summary.total_errors}}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "name": "Errors Detected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        6160,
+        80
+      ],
+      "id": "4c845786-5af6-416c-92a3-5e49940ccc8f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get report from previous node\nconst { report, summary } = $input.first().json;\n\n// Format error notification\nconst errorNotification = {\n  subject: `⚠️ Infrastructure Setup Completed with Warnings - ${new Date().toISOString()}`,\n  body: `\n  Infrastructure setup completed with ${summary.total_errors} warnings.\n  \n  Please review the full report for details.\n  `\n};\n\nconsole.log(`📧 Would send warning notification: ${errorNotification.subject}`);\n\nreturn [{\n  json: {\n    report,\n    summary,\n    notification: errorNotification\n  }\n}];"
+      },
+      "name": "Format Error Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        0
+      ],
+      "id": "2b11afaa-c7bd-4f80-afb7-860c019cc53b"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get report from previous node\nconst { report, summary } = $input.first().json;\n\n// Format success notification\nconst successNotification = {\n  subject: `✅ Infrastructure Setup Completed Successfully - ${new Date().toISOString()}`,\n  body: `\n  Infrastructure setup completed successfully.\n  \n  Resources created: ${summary.total_created}\n  `\n};\n\nconsole.log(`📧 Would send success notification: ${successNotification.subject}`);\n\nreturn [{\n  json: {\n    report,\n    summary,\n    notification: successNotification\n  }\n}];"
+      },
+      "name": "Format Success Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6380,
+        160
+      ],
+      "id": "7286e1e7-3189-4c53-a942-ed32eaef2a05"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get notification from previous node\nconst { report, notification } = $input.first().json;\n\nconsole.log(`✅ Infrastructure Setup and Validation Workflow completed`);\nconsole.log(`📊 Report: ${report}`);\n\nreturn [{\n  json: {\n    workflow_status: 'completed',\n    completion_timestamp: new Date().toISOString(),\n    report\n  }\n}];"
+      },
+      "name": "Workflow Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6600,
+        80
+      ],
+      "id": "7353b276-a47a-418a-9697-63eceb8ed0f3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        2940,
+        80
+      ],
+      "id": "8c1cb774-c2f3-4a29-9b3c-97f05b303b9d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4dd0cda7-af4e-402a-bfe8-09df87ce32ee",
+              "leftValue": "={{ $json.hasColumnsToAdd }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        80
+      ],
+      "id": "48688a64-8991-4f5d-927b-bc7fa1f1d2a5",
+      "name": "Add Missing Columns?"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Initialization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Initialization": {
+      "main": [
+        [
+          {
+            "node": "Database Connection Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Connection Check": {
+      "main": [
+        [
+          {
+            "node": "Database Table Existence Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Table Existence Check": {
+      "main": [
+        [
+          {
+            "node": "Table Existence Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table Existence Processing": {
+      "main": [
+        [
+          {
+            "node": "Create Missing Tables?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Missing Tables?": {
+      "main": [
+        [
+          {
+            "node": "Execute Table Creation SQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check llm_analysis Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Table Creation SQL": {
+      "main": [
+        [
+          {
+            "node": "Table Creation Error Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table Creation Error Handling": {
+      "main": [
+        [
+          {
+            "node": "Check llm_analysis Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check llm_analysis Columns": {
+      "main": [
+        [
+          {
+            "node": "llm_analysis Column Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "llm_analysis Column Processing": {
+      "main": [
+        [
+          {
+            "node": "Check calls Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check calls Columns": {
+      "main": [
+        [
+          {
+            "node": "calls Column Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calls Column Processing": {
+      "main": [
+        [
+          {
+            "node": "Check pipe_response Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check pipe_response Columns": {
+      "main": [
+        [
+          {
+            "node": "pipe_response Column Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pipe_response Column Processing": {
+      "main": [
+        [
+          {
+            "node": "Check agent_results Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check agent_results Columns": {
+      "main": [
+        [
+          {
+            "node": "agent_results Column Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agent_results Column Processing": {
+      "main": [
+        [
+          {
+            "node": "Add Missing Columns?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Column Addition SQL": {
+      "main": [
+        [
+          {
+            "node": "Column Addition Error Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Column Addition Error Handling": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Bucket Existence Check": {
+      "main": [
+        [
+          {
+            "node": "S3 Bucket Existence Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Bucket Existence Processing": {
+      "main": [
+        [
+          {
+            "node": "Create S3 Bucket?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create S3 Bucket?": {
+      "main": [
+        [
+          {
+            "node": "Execute S3 Bucket Creation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "S3 Folder Structure Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute S3 Bucket Creation": {
+      "main": [
+        [
+          {
+            "node": "S3 Bucket Creation Error Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Bucket Creation Error Handling": {
+      "main": [
+        [
+          {
+            "node": "S3 Folder Structure Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Folder Structure Check": {
+      "main": [
+        [
+          {
+            "node": "S3 Folder Structure Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Folder Structure Processing": {
+      "main": [
+        [
+          {
+            "node": "Create Missing S3 Folders?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Missing S3 Folders?": {
+      "main": [
+        [
+          {
+            "node": "Split Missing Folders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Validation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Missing Folders": {
+      "main": [
+        [
+          {
+            "node": "Execute S3 Folder Creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute S3 Folder Creation": {
+      "main": [
+        [
+          {
+            "node": "S3 Folder Creation Error Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Folder Creation Error Handling": {
+      "main": [
+        [
+          {
+            "node": "Wait for All Folder Creations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for All Folder Creations": {
+      "main": [
+        [
+          {
+            "node": "Generate Validation Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Validation Results": {
+      "main": [
+        [
+          {
+            "node": "Format Validation Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Validation Report": {
+      "main": [
+        [
+          {
+            "node": "Errors Detected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Errors Detected?": {
+      "main": [
+        [
+          {
+            "node": "Format Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Notification": {
+      "main": [
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Success Notification": {
+      "main": [
+        [
+          {
+            "node": "Workflow Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "S3 Bucket Existence Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Missing Columns?": {
+      "main": [
+        [
+          {
+            "node": "Execute Column Addition SQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

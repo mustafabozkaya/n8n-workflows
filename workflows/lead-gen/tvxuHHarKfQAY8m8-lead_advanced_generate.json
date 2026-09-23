@@ -1,0 +1,1471 @@
+{
+  "name": "lead_advanced_generate",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "dfceeaa2-1b6c-489f-b780-8aea1d81e23b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT lc.id as cat_id, lc.category, lc.category_group, lc.category_group_tr , bl.* \nFROM lead_db.business_leads bl\nLEFT JOIN lead_db.lead_category lc ON bl.category = lc.category\nLEFT JOIN lead_db.cold_reach_leads crl ON crl.cid = bl.cid\nWHERE bl.pipelined IS NULL OR bl.pipelined = 0 and crl.pipelined = 0 or bl.pipelined IS NULL \nLIMIT 50;"
+      },
+      "id": "5cd18d34-4049-4a89-a7d2-4e6ba23370e5",
+      "name": "Fetch New Leads from MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        260
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "682bf4c1-2dc0-49d5-bd38-4a9cf954c496",
+              "leftValue": "={{ $json.category_group }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "af04f396-9daa-4198-a81d-85f3355e9129",
+              "leftValue": "={{ $json.category_group_tr }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -580,
+        260
+      ],
+      "id": "022918eb-c441-4b03-9baf-dd21554e8df0",
+      "name": "IF (POI Category Group Missing?)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- SABİT HARİTALAR VE VERİTABANLARI ---\n\nconst yaskaSectorMapping = {\n  \"Sağlık Sektörü\": {\n    english_keywords_general_poi: [\"Health & Medical\"],\n    german_keywords_specific_poi: [\"arzt\", \"ärzte\", \"klinik\", \"apotheke\", \"heilpraktiker\", \"alternativmediziner\", \"physiotherapeut\", \"zahnarzt\", \"medizin\", \"gesundheit\"],\n    yaska_category_group_tr: \"Sağlık Sektörü\", yaska_category_group_en: \"Healthcare Sector\", yaska_category_group_de: \"Gesundheitssektor\"\n  },\n  \"Otomotiv Sektörü\": {\n    english_keywords_general_poi: [\"Automotive\", \"Automotive / Shopping\", \"Transportation\"],\n    german_keywords_specific_poi: [\"autohändler\", \"autowerkstatt\", \"kfz\", \"autoteile\", \"fahrzeug\", \"reifen\", \"auto\", \"werkstatt\"],\n    yaska_category_group_tr: \"Otomotiv Sektörü\", yaska_category_group_en: \"Automotive Sector\", yaska_category_group_de: \"Automobilsektor\"\n  },\n  \"Hukuk Sektörü\": {\n    english_keywords_general_poi: [\"Professional Services\", \"Legal\"],\n    german_keywords_specific_poi: [\"anwalt\", \"rechtsanwalt\", \"kanzlei\", \"notar\", \"jurist\", \"recht\"],\n    yaska_category_group_tr: \"Hukuk Sektörü\", yaska_category_group_en: \"Legal Sector\", yaska_category_group_de: \"Rechtssektor\"\n  },\n  \"Zanaatkar/Usta Sektörü\": {\n    english_keywords_general_poi: [\"Construction & Home Improvement\", \"Services\", \"Craftsmanship\", \"Trades\"],\n    german_keywords_specific_poi: [\"handwerker\", \"meisterbetrieb\", \"tischler\", \"maler\", \"elektriker\", \"installateur\", \"dachdecker\", \"schreiner\", \"heizung\", \"sanitär\", \"bau\", \"raumausstatter\"],\n    yaska_category_group_tr: \"Zanaatkar/Usta Sektörü\", yaska_category_group_en: \"Craftsmen/Trades Sector\", yaska_category_group_de: \"Handwerkssektor\"\n  },\n  \"Emlak Sektörü\": {\n    english_keywords_general_poi: [\"Real Estate\", \"Property\"],\n    german_keywords_specific_poi: [\"immobilien\", \"makler\", \"wohnung\", \"hausverwaltung\", \"grundstück\", \"vermietung\"],\n    yaska_category_group_tr: \"Emlak Sektörü\", yaska_category_group_en: \"Real Estate Sector\", yaska_category_group_de: \"Immobiliensektor\"\n  },\n  \"Güzellik Sektörü\": {\n    english_keywords_general_poi: [\"Personal Care & Beauty\", \"Health & Wellness\", \"Salon\"],\n    german_keywords_specific_poi: [\"schönheitssalon\", \"kosmetikstudio\", \"friseur\", \"nagelstudio\", \"wellness\", \"beauty\", \"kosmetik\", \"haare\"],\n    yaska_category_group_tr: \"Güzellik Sektörü\", yaska_category_group_en: \"Beauty Sector\", yaska_category_group_de: \"Schönheitssektor\"\n  },\n  \"Eğitim Sektörü\": {\n    english_keywords_general_poi: [\"Education\", \"Education & Culture\"],\n    german_keywords_specific_poi: [\"schule\", \"universität\", \"kurs\", \"nachhilfe\", \"bildungszentrum\", \"fahrschule\", \"bildung\", \"unterricht\", \"kindertagesstätte\", \"kita\"],\n    yaska_category_group_tr: \"Eğitim Sektörü\", yaska_category_group_en: \"Education Sector\", yaska_category_group_de: \"Bildungssektor\"\n  },\n  \"Genel Hizmet Sektörü\": {\n    english_keywords_general_poi: [\"Food & Drink\", \"Accommodation\", \"Services (General)\", \"Arts & Entertainment\", \"Tourism\", \"Shopping\", \"Retail\", \"Business Services\", \"Financial Services\", \"Professional Services\", \"Legal\"],\n    german_keywords_specific_poi: [\"restaurant\", \"hotel\", \"dienstleistung\", \"gastronomie\", \"berater\", \"agentur\", \"versicherung\", \"bank\", \"geschäft\", \"laden\", \"tourismus\", \"unterhaltung\", \"steuerberater\"],\n    yaska_category_group_tr: \"Genel Hizmet Sektörü\", yaska_category_group_en: \"General Services Sector\", yaska_category_group_de: \"Allgemeiner Dienstleistungssektor\"\n  },\n  \"Diğer/Bilinmeyen\": {\n    english_keywords_general_poi: [], german_keywords_specific_poi: [],\n    yaska_category_group_tr: \"Diğer/Bilinmeyen\", yaska_category_group_en: \"Other/Unknown\", yaska_category_group_de: \"Sonstige/Unbekannt\"\n  }\n};\n\nconst generalCategoryTranslations = {\n  \"Health & Medical\": { german: \"Gesundheit & Medizin\", turkish: \"Sağlık & Tıp\" },\n  \"Automotive / Shopping\": { german: \"Automobil / Einkaufen\", turkish: \"Otomotiv / Alışveriş\" },\n  \"Automotive\": { german: \"Automobil\", turkish: \"Otomotiv\" },\n  \"Transportation\": { german: \"Transport\", turkish: \"Ulaşım\" },\n  \"Professional Services\": { german: \"Professionelle Dienstleistungen\", turkish: \"Profesyonel Hizmetler\" },\n  \"Legal\": { german: \"Recht\", turkish: \"Hukuk\" },\n  \"Industry & Manufacturing\": { german: \"Industrie & Herstellung\", turkish: \"Sanayi & Üretim\" },\n  \"Financial Services\": { german: \"Finanzdienstleistungen\", turkish: \"Finansal Hizmetler\" },\n  \"Business Services\": { german: \"Geschäftsdienstleistungen\", turkish: \"İş Hizmetleri\" },\n  \"Food & Drink\": { german: \"Essen & Trinken\", turkish: \"Yeme & İçme\" },\n  \"Construction & Home Improvement\": { german: \"Bau & Heimwerken\", turkish: \"İnşaat & Ev Geliştirme\" },\n  \"Services\": { german: \"Dienstleistungen\", turkish: \"Hizmetler\" },\n  \"Craftsmanship\": { german: \"Handwerk\", turkish: \"Zanaatkarlık\" },\n  \"Trades\": { german: \"Gewerbe\", turkish: \"Meslekler/Esnaf\" },\n  \"Real Estate\": { german: \"Immobilien\", turkish: \"Emlak\" },\n  \"Property\": { german: \"Eigentum\", turkish: \"Mülk\" },\n  \"Personal Care & Beauty\": { german: \"Körperpflege & Schönheit\", turkish: \"Kişisel Bakım & Güzellik\" },\n  \"Health & Wellness\": { german: \"Gesundheit & Wellness\", turkish: \"Sağlık & Zindelik\" },\n  \"Salon\": { german: \"Salon\", turkish: \"Salon\" },\n  \"Education\": { german: \"Bildung\", turkish: \"Eğitim\" },\n  \"Education & Culture\": { german: \"Bildung & Kultur\", turkish: \"Eğitim & Kültür\" },\n  \"Accommodation\": { german: \"Unterkunft\", turkish: \"Konaklama\" },\n  \"Services (General)\": { german: \"Allgemeine Dienstleistungen\", turkish: \"Genel Hizmetler\" },\n  \"Arts & Entertainment\": { german: \"Kunst & Unterhaltung\", turkish: \"Sanat & Eğlence\" },\n  \"Tourism\": { german: \"Tourismus\", turkish: \"Turizm\" },\n  \"Shopping\": { german: \"Einkaufen\", turkish: \"Alışveriş\" },\n  \"Retail\": { german: \"Einzelhandel\", turkish: \"Perakende\" },\n  \"Uncategorized\": { german: \"Unkategorisiert\", turkish: \"Kategorize Edilmemiş\" },\n  \"Error/Unknown\": { german: \"Fehler/Unbekannt\", turkish: \"Hata/Bilinmiyor\" }\n};\n\nconst detailedPoiToGeneralEnglishPoi = [\n  { german_detailed: \"kindertagesstätte\", general_english_poi_category: \"Education\" },\n  { german_detailed: \"kita\", general_english_poi_category: \"Education\" },\n  { german_detailed: \"arzt\", general_english_poi_category: \"Health & Medical\" },\n  { german_detailed: \"ärzte\", general_english_poi_category: \"Health & Medical\" },\n  { german_detailed: \"klinik\", general_english_poi_category: \"Health & Medical\" },\n  { german_detailed: \"apotheke\", general_english_poi_category: \"Health & Medical\" },\n  { german_detailed: \"autohändler\", general_english_poi_category: \"Automotive / Shopping\" },\n  { german_detailed: \"autowerkstatt\", general_english_poi_category: \"Automotive\" },\n  { german_detailed: \"maschinenbau\", general_english_poi_category: \"Industry & Manufacturing\" },\n  { german_detailed: \"pizzeria\", general_english_poi_category: \"Food & Drink\" },\n  { german_detailed: \"rechtsanwalt\", general_english_poi_category: \"Legal\" },\n  { german_detailed: \"notar\", general_english_poi_category: \"Legal\" },\n  { german_detailed: \"tischler\", general_english_poi_category: \"Craftsmanship\" },\n  { german_detailed: \"maler\", general_english_poi_category: \"Craftsmanship\" },\n  { german_detailed: \"immobilienmakler\", general_english_poi_category: \"Real Estate\" },\n  { german_detailed: \"friseur\", general_english_poi_category: \"Salon\" },\n  { german_detailed: \"kosmetikstudio\", general_english_poi_category: \"Personal Care & Beauty\" },\n  { german_detailed: \"schule\", general_english_poi_category: \"Education\" },\n  { german_detailed: \"restaurant\", general_english_poi_category: \"Food & Drink\" },\n  { german_detailed: \"hotel\", general_english_poi_category: \"Accommodation\" },\n];\n\n// --- ANA İŞLEM MANTIĞI ---\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const leadData = item.json;\n  \n  // 1. KATEGORİ ADINI TEMİZLE VE DÜZELT\n  let originalGermanCategory = leadData.category ? leadData.category.trim() : \"\";\n  try {\n    // Bozuk UTF-8 karakterlerini (\"Ã¤\" -> \"ä\") düzelt\n    const decoded = Buffer.from(originalGermanCategory, 'latin1').toString('utf8');\n    // Eğer '�' (geçersiz karakter) içermiyorsa, düzeltilmiş halini kullan\n    if (!decoded.includes('�')) {\n        originalGermanCategory = decoded;\n    }\n  } catch (e) {\n    // Hata olursa görmezden gel, orijinal değeri kullan\n  }\n  const cleanedCategory = originalGermanCategory.toLowerCase();\n  \n  // 2. KATEGORİZASYON DEĞİŞKENLERİNİ TANIMLA\n  let determinedYaskaSector = null;\n  let general_poi_details = null;\n  let needs_llm_lookup = true; // Varsayılan: LLM'e git\n\n  // 3. KURAL TABANLI EŞLEŞTİRME (HIZLI YOL)\n  // Adım 3a: Detaylı POI listesini kontrol et\n  const matchedDetailedPoi = detailedPoiToGeneralEnglishPoi.find(\n    entry => cleanedCategory.includes(entry.german_detailed)\n  );\n\n  if (matchedDetailedPoi) {\n    const generalEngCategory = matchedDetailedPoi.general_english_poi_category;\n    if (generalCategoryTranslations[generalEngCategory]) {\n      general_poi_details = {\n        original_german_category: originalGermanCategory,\n        mapped_poi_category_german: generalCategoryTranslations[generalEngCategory].german,\n        mapped_poi_category_english: generalEngCategory,\n        mapped_poi_category_turkish: generalCategoryTranslations[generalEngCategory].turkish\n      };\n      // Bu genel POI ile bir Yaska sektörü bulabilir miyiz?\n      for (const sectorName in yaskaSectorMapping) {\n        const sectorData = yaskaSectorMapping[sectorName];\n        if (sectorData.english_keywords_general_poi.includes(generalEngCategory)) {\n          determinedYaskaSector = {\n            yaska_tr: sectorData.yaska_category_group_tr,\n            yaska_en: sectorData.yaska_category_group_en,\n            yaska_de: sectorData.yaska_category_group_de,\n            match_type: \"yaska_from_detailed_poi\"\n          };\n          break; // Sektör bulundu, döngüden çık\n        }\n      }\n      needs_llm_lookup = false; // Detaylı eşleşme bulundu, LLM'e gerek yok\n    }\n  }\n\n  // Adım 3b: Eğer hala sektör bulunamadıysa, Yaska'nın kendi anahtar kelimelerini kontrol et\n  if (!determinedYaskaSector) {\n    for (const sectorName in yaskaSectorMapping) {\n      const sectorData = yaskaSectorMapping[sectorName];\n      if (sectorData.german_keywords_specific_poi.some(keyword => cleanedCategory.includes(keyword))) {\n        determinedYaskaSector = {\n          yaska_tr: sectorData.yaska_category_group_tr,\n          yaska_en: sectorData.yaska_category_group_en,\n          yaska_de: sectorData.yaska_category_group_de,\n          match_type: \"yaska_specific_keyword\"\n        };\n        // POI detayını da varsayılan olarak ata\n        const matchedGeneralPoiEng = sectorData.english_keywords_general_poi[0] || \"Uncategorized\";\n        if (generalCategoryTranslations[matchedGeneralPoiEng] && !general_poi_details) {\n            general_poi_details = {\n                original_german_category: originalGermanCategory,\n                mapped_poi_category_german: generalCategoryTranslations[matchedGeneralPoiEng].german,\n                mapped_poi_category_english: matchedGeneralPoiEng,\n                mapped_poi_category_turkish: generalCategoryTranslations[matchedGeneralPoiEng].turkish\n            };\n        }\n        needs_llm_lookup = false; // Yaska anahtar kelimesiyle eşleşti, LLM'e gerek yok\n        break;\n      }\n    }\n  }\n\n  // 4. FALLBACK (Eğer hiçbir kural eşleşmediyse)\n  if (!determinedYaskaSector) {\n    determinedYaskaSector = {\n      ...yaskaSectorMapping[\"Diğer/Bilinmeyen\"],\n      match_type: \"fallback_needs_llm\"\n    };\n    needs_llm_lookup = true; // Hiçbir kural çalışmadı, LLM'e kesin git\n  }\n  \n  // 5. SONUCU OLUŞTUR\n  results.push({\n    json: {\n      ...leadData, // Orijinal lead verisini olduğu gibi taşı\n      categorization_attempt: { // Tüm yeni bilgileri bu nesne altına topla\n          yaska_sector_info: determinedYaskaSector,\n          general_poi_info_from_db: general_poi_details,\n          needs_llm_lookup: needs_llm_lookup,\n          original_german_category_for_processing: originalGermanCategory\n      }\n    }\n  });\n}\n\nreturn results; "
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        100
+      ],
+      "id": "165b22b4-a15f-4de7-91e1-a33fdfcfefab",
+      "name": "Code (Attempt POI DB Match - Placeholder)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.categorization_attempt.needs_llm_lookup}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        40,
+        100
+      ],
+      "id": "ddca1ef0-a7c1-41ae-9750-1e9c8d8af8de",
+      "name": "IF (LLM Lookup Needed?)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- SABİT SYSTEM PROMPT (Genel POI Sınıflandırması için) ---\nconst system_prompt_content = `Sen, coğrafi konum verileri ve İlgi Çekici Noktalar (POI) konusunda uzman bir yapay zeka asistanısın.\nGörevin, kullanıcı tarafından sağlanan Almanca bir POI (Point of Interest) kategori adını analiz etmek ve bazen önceden tahmin edilmiş bir İngilizce genel POI kategorisini de dikkate alarak, bu Almanca kategori için en uygun standart İngilizce genel POI kategorisini belirlemek ve bu belirlediğin İngilizce genel POI kategorisinin Almanca ve Türkçe karşılıklarını sağlamaktır.\nSağlanan Ana İngilizce Genel POI Kategorileri (bunları veya çok yakınlarını kullanmaya çalış):\n[\n\"Health & Medical\", \"Automotive\", \"Automotive / Shopping\", \"Transportation\", \"Professional Services\", \"Legal\",\n\"Industry & Manufacturing\", \"Financial Services\", \"Business Services\", \"Food & Drink\",\n\"Construction & Home Improvement\", \"Services\", \"Craftsmanship\", \"Trades\", \"Real Estate\", \"Property\",\n\"Personal Care & Beauty\", \"Health & Wellness\", \"Salon\", \"Education\", \"Education & Culture\",\n\"Accommodation\", \"Services (General)\", \"Arts & Entertainment\", \"Tourism\", \"Shopping\", \"Retail\",\n\"Uncategorized\", \"Other\"\n]\nÇıktıyı daima aşağıdaki JSON formatında ver:\n{\n\"original_german_category\": \"GİRDİ OLARAK VERİLEN ALMANCA KATEGORİ ADI\",\n\"refined_english_general_poi\": \"SENİN BELİRLEDİĞİN STANDART İNGİLİZCE GENEL POI KATEGORİSİ\",\n\"mapped_poi_category_german\": \"BELİRLEDİĞİN İNGİLİZCE GENEL POI KATEGORİSİNİN ALMANCA KARŞILIĞI\",\n\"mapped_poi_category_turkish\": \"BELİRLEDİĞİN İNGİLİZCE GENEL POI KATEGORİSİNİN TÜRKÇE KARŞILIĞI\"\n}\nÖrnek 1 (Ön Bilgi Yok):\nKullanıcı Girdisi: Almanca Kategori: \"Maschinenbau\"\nSenin Çıktın:\n{\n\"original_german_category\": \"Maschinenbau\",\n\"refined_english_general_poi\": \"Industry & Manufacturing\",\n\"mapped_poi_category_german\": \"Industrie & Herstellung\",\n\"mapped_poi_category_turkish\": \"Sanayi & Üretim\"\n}\nÖrnek 2 (Ön Bilgi Var):\nKullanıcı Girdisi: Almanca Kategori: \"Arztpraxis\", Önerilen İngilizce Genel POI: \"Services\"\nSenin Çıktın (Düzeltilmiş/Onaylanmış):\n{\n\"original_german_category\": \"Arztpraxis\",\n\"refined_english_general_poi\": \"Health & Medical\",\n\"mapped_poi_category_german\": \"Gesundheit & Medizin\",\n\"mapped_poi_category_turkish\": \"Sağlık & Tıp\"\n}\nÖrnek 3 (Ön Bilgi Var ve Doğru):\nKullanıcı Girdisi: Almanca Kategori: \"Pizzeria\", Önerilen İngilizce Genel POI: \"Food & Drink\"\nSenin Çıktın:\n{\n\"original_german_category\": \"Pizzeria\",\n\"refined_english_general_poi\": \"Food & Drink\",\n\"mapped_poi_category_german\": \"Essen & Trinken\",\n\"mapped_poi_category_turkish\": \"Yeme & İçme\"\n}\n`;\n\n// --- ANA İŞLEM MANTIĞI ---\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Bu düğüme gelen tüm veriyi al (id, name, categorization_attempt vs. içerir)\n  const leadWithCategorizationAttempt = item.json;\n  \n  // Gerekli bilgileri yeni 'categorization_attempt' nesnesinden al\n  const categorizationInfo = leadWithCategorizationAttempt.categorization_attempt;\n  const germanCategoryForLlm = categorizationInfo.original_german_category_for_processing;\n\n  if (!germanCategoryForLlm) {\n    // LLM işlemi bu lead için atlanıyor, ama veriyi yine de koruyarak ilerleyebiliriz\n    results.push({\n      json: {\n        ...leadWithCategorizationAttempt, // Orijinal veriyi koru\n        llm_error_message: \"LLM için Almanca kategori adı bulunamadı.\"\n      }\n    });\n    continue;\n  }\n\n  // Kullanıcı komutunu (User Prompt) oluştur\n  let user_prompt_content = `Almanca POI Kategori Adı: \"${germanCategoryForLlm}\".\\n`;\n\n  // Eğer kural tabanlı bir tahmin varsa, bunu komuta ekle\n  const suggestedPoi = categorizationInfo.general_poi_info_from_db;\n  if (suggestedPoi && suggestedPoi.mapped_poi_category_english) {\n    user_prompt_content += `Veritabanı tabanlı önerilen İngilizce Genel POI Kategorisi: \"${suggestedPoi.mapped_poi_category_english}\".\\nBu öneriyi de dikkate alarak veya düzelterek en uygun standart İngilizce genel POI kategorisini ve onun Almanca/Türkçe çevirilerini belirle.`;\n  } else {\n    user_prompt_content += `Bu Almanca kategori için en uygun standart İngilizce genel POI kategorisini ve onun Almanca/Türkçe çevirilerini belirle.`;\n  }\n\n  // LLM'e gönderilecek nihai mesaj yapısını oluştur\n  const messagesForLlm = [\n    { \"role\": \"system\", \"content\": system_prompt_content },\n    { \"role\": \"user\", \"content\": user_prompt_content }\n  ];\n\n  results.push({\n    json: {\n      // *** EN ÖNEMLİ KISIM: VERİ TAŞIMA ***\n      // Orijinal lead verisini ve önceki kategorizasyon denemesini de bu düğümün çıktısına ekliyoruz.\n      // Bu sayede LLM zincirinden sonra bu veriye eksiksiz erişebileceğiz.\n      original_lead_data: leadWithCategorizationAttempt,\n      \n      // LLM'in ihtiyaç duyduğu veri\n      llm_messages: messagesForLlm\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        -20
+      ],
+      "id": "8cf8d3bb-0b2f-4fb8-90e7-c9dbe669786b",
+      "name": "Code (Prepare LLM Prompt - Placeholder)"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash-latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        620,
+        100
+      ],
+      "id": "38e0fb54-0773-4fb9-830e-f1157ff9034d",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "a26U8RyAWchCEjA1",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_messages[1].content }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.llm_messages[0].content }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        640,
+        -20
+      ],
+      "id": "406d3d77-6050-43b0-8267-75d2cd736a62",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- Varsayılan Hata Çıktısı ---\nconst defaultErrorLlmOutput = {\n  original_german_category: \"Unknown (LLM Error)\",\n  refined_english_general_poi: \"Error/Unknown\",\n  mapped_poi_category_german: \"Fehler/Unbekannt\",\n  mapped_poi_category_turkish: \"Hata/Bilinmiyor\"\n};\n\n// --- ANA İŞLEM MANTIĞI ---\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Bu düğüme gelen veride artık hem 'text' (LLM çıktısı) hem de 'original_lead_data' var.\n  const inputData = item.json;\n  \n  // 1. Orijinal lead verisini ve LLM metnini ayıralım\n  const originalLeadData = $(\"Code (Prepare LLM Prompt - Placeholder)\").first().json.original_lead_data;\n  const raw_llm_response_text = inputData.text || null;\n  \n  let llm_processed_output;\n  let llm_parsing_error_message = null;\n\n  // Hata durumunda kullanılacak orijinal kategori adını al\n  const originalGermanCategorySentToLlm = originalLeadData.categorization_attempt.original_german_category_for_processing;\n\n  // 2. LLM YANITINI AYRIŞTIRMA (Parse)\n  if (raw_llm_response_text) {\n    try {\n      // ```json bloğunu ve olası baştaki/sondaki boşlukları temizle\n      const jsonRegex = /```json\\s*([\\s\\S]*?)\\s*```/;\n      const match = raw_llm_response_text.match(jsonRegex);\n      const jsonContentToParse = match ? match[1].trim() : raw_llm_response_text.trim();\n      \n      llm_processed_output = JSON.parse(jsonContentToParse);\n\n      // Beklenen alanların varlığını kontrol et\n      if (!llm_processed_output.refined_english_general_poi || !llm_processed_output.mapped_poi_category_german) {\n        throw new Error(\"LLM yanıtı beklenen 'refined_english_general_poi' veya 'mapped_poi_category_german' alanlarını içermiyor.\");\n      }\n    } catch (e) {\n      llm_parsing_error_message = `LLM JSON yanıtı ayrıştırılamadı: ${e.message}. Ham yanıt: ${raw_llm_response_text}`;\n      llm_processed_output = {\n        ...defaultErrorLlmOutput,\n        original_german_category: originalGermanCategorySentToLlm\n      };\n    }\n  } else {\n    llm_parsing_error_message = \"LLM'den metin yanıtı alınamadı (input.text boş veya tanımsız).\";\n    llm_processed_output = {\n      ...defaultErrorLlmOutput,\n      original_german_category: originalGermanCategorySentToLlm\n    };\n  }\n\n  // 3. NİHAİ ÇIKTIYI OLUŞTUR\n  // Hem orijinal lead verisini hem de LLM'in işlenmiş sonucunu birleştir.\n  // Bu yapı, bir sonraki Merge düğümüne her iki koldan da tutarlı veri gelmesini sağlar.\n  results.push({\n    json: {\n      ...originalLeadData, // id, name, cid, categorization_attempt vb. her şey burada\n      llm_result: { // LLM'den gelen tüm bilgileri bu nesne altına topla\n        categorization_engine_used: 'llm',\n        processed_output: llm_processed_output,\n        parsing_error: llm_parsing_error_message,\n        raw_response: raw_llm_response_text\n      }\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        -20
+      ],
+      "id": "71645b58-fc10-44d6-9d6b-b051f2a60bdd",
+      "name": "Code (Parse LLM Response - Placeholder)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        340,
+        380
+      ],
+      "id": "d2871070-2019-4a04-a6cb-7ecf138a5761",
+      "name": "Merge (LLM and DB Categorization Results)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- SABİT HARİTALAR VE VARSAYILAN DEĞERLER ---\n\nconst yaskaSectorMapping = {\n  \"Sağlık Sektörü\": { english_keywords_general_poi: [\"Health & Medical\"], yaska_category_group_tr: \"Sağlık Sektörü\", yaska_category_group_en: \"Healthcare Sector\", yaska_category_group_de: \"Gesundheitssektor\" },\n  \"Otomotiv Sektörü\": { english_keywords_general_poi: [\"Automotive\", \"Automotive / Shopping\", \"Transportation\"], yaska_category_group_tr: \"Otomotiv Sektörü\", yaska_category_group_en: \"Automotive Sector\", yaska_category_group_de: \"Automobilsektor\" },\n  \"Hukuk Sektörü\": { english_keywords_general_poi: [\"Professional Services\", \"Legal\"], yaska_category_group_tr: \"Hukuk Sektörü\", yaska_category_group_en: \"Legal Sector\", yaska_category_group_de: \"Rechtssektor\" },\n  \"Zanaatkar/Usta Sektörü\": { english_keywords_general_poi: [\"Construction & Home Improvement\", \"Services\", \"Craftsmanship\", \"Trades\"], yaska_category_group_tr: \"Zanaatkar/Usta Sektörü\", yaska_category_group_en: \"Craftsmen/Trades Sector\", yaska_category_group_de: \"Handwerkssektor\" },\n  \"Emlak Sektörü\": { english_keywords_general_poi: [\"Real Estate\", \"Property\"], yaska_category_group_tr: \"Emlak Sektörü\", yaska_category_group_en: \"Real Estate Sector\", yaska_category_group_de: \"Immobiliensektor\" },\n  \"Güzellik Sektörü\": { english_keywords_general_poi: [\"Personal Care & Beauty\", \"Health & Wellness\", \"Salon\"], yaska_category_group_tr: \"Güzellik Sektörü\", yaska_category_group_en: \"Beauty Sector\", yaska_category_group_de: \"Schönheitssektor\" },\n  \"Eğitim Sektörü\": { english_keywords_general_poi: [\"Education\", \"Education & Culture\"], yaska_category_group_tr: \"Eğitim Sektörü\", yaska_category_group_en: \"Education Sector\", yaska_category_group_de: \"Bildungssektor\" },\n  \"Genel Hizmet Sektörü\": { english_keywords_general_poi: [\"Food & Drink\", \"Accommodation\", \"Services (General)\", \"Arts & Entertainment\", \"Tourism\", \"Shopping\", \"Retail\", \"Business Services\", \"Financial Services\", \"Professional Services\", \"Legal\"], yaska_category_group_tr: \"Genel Hizmet Sektörü\", yaska_category_group_en: \"General Services Sector\", yaska_category_group_de: \"Allgemeiner Dienstleistungssektor\" },\n  \"Diğer/Bilinmeyen\": { english_keywords_general_poi: [], yaska_category_group_tr: \"Diğer/Bilinmeyen\", yaska_category_group_en: \"Other/Unknown\", yaska_category_group_de: \"Sonstige/Unbekannt\" }\n};\n\nconst defaultYaskaSector = {\n  ...yaskaSectorMapping[\"Diğer/Bilinmeyen\"],\n  match_type: \"ultimate_fallback\"\n};\n\nconst defaultGeneralPoi = {\n  mapped_poi_category_english: \"Uncategorized\",\n  mapped_poi_category_german: \"Unkategorisiert\",\n  mapped_poi_category_turkish: \"Kategorize Edilmemiş\",\n  source: 'ultimate_fallback'\n};\n\n\n// --- ANA İŞLEM MANTIĞI ---\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const leadData = item.json;\n  \n  let final_general_poi = null;\n  let final_yaska_sector = null;\n  let source_of_truth = 'kural_tabanli'; // Varsayılan kaynak\n\n  // Adım 1: En güvenilir POI bilgisini seç (Öncelik: LLM)\n  if (leadData.llm_result && leadData.llm_result.processed_output && leadData.llm_result.processed_output.refined_english_general_poi !== \"Error/Unknown\") {\n    // LLM sonucu geçerliyse, onu kullan\n    const llmOutput = leadData.llm_result.processed_output;\n    final_general_poi = {\n      original_german_category: llmOutput.original_german_category,\n      mapped_poi_category_english: llmOutput.refined_english_general_poi,\n      mapped_poi_category_german: llmOutput.mapped_poi_category_german,\n      mapped_poi_category_turkish: llmOutput.mapped_poi_category_turkish,\n      source: 'llm_valid'\n    };\n    source_of_truth = 'llm';\n  } else if (leadData.categorization_attempt && leadData.categorization_attempt.general_poi_info_from_db) {\n    // LLM yoksa veya geçersizse, kural tabanlı sonucu kullan\n    final_general_poi = {\n      ...leadData.categorization_attempt.general_poi_info_from_db,\n      source: 'rule_based_valid'\n    };\n  } else {\n    // Hiçbir geçerli sonuç yoksa, varsayılanı kullan\n    final_general_poi = {\n      ...defaultGeneralPoi,\n      original_german_category: leadData.categorization_attempt?.original_german_category_for_processing || leadData.category || \"N/A\",\n    };\n  }\n\n  // Adım 2: Nihai Yaska Sektörünü Belirle\n  // Öncelik sırası: LLM'in bulduğu POI'den türetilen sektör > Kural tabanlı bulunan sektör > Varsayılan\n  let found_yaska = false;\n  if (final_general_poi.mapped_poi_category_english) {\n    for (const sectorName in yaskaSectorMapping) {\n      const sectorData = yaskaSectorMapping[sectorName];\n      if (sectorData.english_keywords_general_poi.includes(final_general_poi.mapped_poi_category_english)) {\n        final_yaska_sector = {\n          yaska_tr: sectorData.yaska_category_group_tr,\n          yaska_en: sectorData.yaska_category_group_en,\n          yaska_de: sectorData.yaska_category_group_de,\n          match_type: `yaska_from_${source_of_truth}`\n        };\n        found_yaska = true;\n        break;\n      }\n    }\n  }\n\n  // Eğer POI bilgisiyle bir sektör bulunamadıysa, kural tabanlı ilk denemedeki sonucu kullanmayı dene\n  if (!found_yaska && leadData.categorization_attempt?.yaska_sector_info && leadData.categorization_attempt.yaska_sector_info.match_type !== \"fallback_needs_llm\") {\n      final_yaska_sector = leadData.categorization_attempt.yaska_sector_info;\n  } \n  // Hala bulunamadıysa, varsayılanı ata\n  else if (!found_yaska) {\n      final_yaska_sector = { ...defaultYaskaSector };\n  }\n\n  // Adım 3: Tüm verileri standart bir formatta birleştir\n  const outputJson = {\n    // Orijinal lead'den gelen tüm ana alanları koru\n    ...leadData, \n\n    // Kategorizasyonla ilgili tüm nihai bilgileri bu nesneye topla\n    final_categorization: {\n      yaska_sector: final_yaska_sector,\n      general_poi: final_general_poi\n    },\n    \n    // Veritabanı ve sonraki adımlarda kolay erişim için ana alanları en üste çıkar\n    // Bu, Expressions'larda `{{ $json.yaska_sector_tr }}` gibi kolay kullanım sağlar\n    original_german_category: final_general_poi.original_german_category,\n    category_group_en: final_general_poi.mapped_poi_category_english,\n    category_group_de: final_general_poi.mapped_poi_category_german,\n    category_group_tr: final_general_poi.mapped_poi_category_turkish,\n    yaska_sector_tr: final_yaska_sector.yaska_tr,\n    yaska_sector_de: final_yaska_sector.yaska_de,\n    yaska_sector_en: final_yaska_sector.yaska_en\n  };\n\n  // Artık ihtiyaç duyulmayan ara işlem nesnelerini temizle (Opsiyonel ama önerilir)\n  delete outputJson.categorization_attempt;\n  delete outputJson.llm_result;\n\n  results.push({ json: outputJson });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        380
+      ],
+      "id": "ce34183b-d658-4f7d-bbe9-d32d74af7809",
+      "name": "Code (Prepare Final Category Data - Placeholder)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Önce güncellemeye çalış\nUPDATE lead_db.lead_category\nSET \n    category_group = '{{ $json.final_categorization.general_poi.mapped_poi_category_german}}', \n    category_group_tr = '{{ $json.final_categorization.general_poi.mapped_poi_category_turkish}}'\nWHERE id = '{{ $json.cat_id}}';\n\n-- Eğer güncellenecek satır bulunamadıysa (yani etkilenen satır sayısı 0 ise), ekle\n"
+      },
+      "id": "cb67a23d-253c-44b1-a017-c7f575998203",
+      "name": "MySQL (Update lead_category Table)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 1,
+      "position": [
+        780,
+        380
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.changedRows || ($json.affectedRows || 0) }}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "id": "b767290d-353c-4fdb-a2a1-edacfcd9dcbd",
+      "name": "IF (lead_category Update OK?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        980,
+        380
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "929da4f9-8038-418f-9859-4d3bd1ecbade",
+      "name": "Merge (Combine All Leads Post-Categorization)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1480,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"category_group\": \"{{ $json.category_group_de}}\",\n  \"category_group_tr\" : \"{{ $json.final_categorization.general_poi.mapped_poi_category_turkish}}\"\n}",
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1720,
+        220
+      ],
+      "id": "4f15a18f-dd69-4459-acbe-f1482da9b2c1",
+      "name": "Set (Enrich Leads with Final Category Data)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1960,
+        220
+      ],
+      "id": "62203441-b266-4c44-9a68-37d95801f6f1",
+      "name": "Loop Over Leads"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $json }}",
+        "options": {}
+      },
+      "id": "443f16d6-8860-4c2c-8265-e6cd1353afb1",
+      "name": "Set (Current Lead Data)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Set (Current Lead Data)').item.json.email || $('Set (Current Lead Data)').item.json.email1 || $('Set (Current Lead Data)').item.json.manager_mail1 || $('Set (Current Lead Data)').item.json.manager_mail2 || $('Set (Current Lead Data)').item.json.manager_mail3 }}",
+              "operation": "contains",
+              "value2": "@"
+            }
+          ]
+        }
+      },
+      "id": "9bf844d5-5088-4fd2-8492-c2164f578617",
+      "name": "IF (Lead Has Valid Email?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2460,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $(\"Set (Current Lead Data)\").first().json; // From 'Set (Current Lead Data)'\nconst category = lead.category_group || lead.category || 'General';\nconst date = new Date().toISOString().split('T')[0];\n// Sanitize name for Instantly.ai (remove special chars except space, dash, underscore)\nconst leadListName = `${category} Leads`;\nreturn { json: { leadListName: leadListName } };"
+      },
+      "id": "36f7494c-bcfa-43c1-8a4f-633517edc74e",
+      "name": "Code (Prepare Lead List Name - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.instantly.ai/api/v2/lead-lists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "cbd336a1-0e9f-443a-a326-6f0a805bfa2a",
+      "name": "HTTP Request (Get Existing Lead Lists on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2940,
+        100
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki 'Code (Prepare Lead List Name - Placeholder)' nodundan gelen veriyi al\n// Bu nodun çıktısı [{ json: { leadListName: \"...\" } }] şeklinde olduğu için ilk elemanı alıyoruz.\nconst preparedListData = $('Code (Prepare Lead List Name - Placeholder)').first().json; // Bu, önceki Code nodundan gelen tek öğeyi alır\nconst leadListNameToFind = preparedListData.leadListName;\n\n// 'HTTP Request (Get Existing Lead Lists on Instantly)' nodundan gelen veriyi al\n// Bu nodun çıktısı da [{ json: { items: [...], next_starting_after: \"...\" } }] şeklinde.\nconst existingListsData = $('HTTP Request (Get Existing Lead Lists on Instantly)').first().json;\nconst existingLeadLists = existingListsData.items || []; // 'items' dizisini al, yoksa boş dizi kullan\n\nlet listExists = false;\nlet existingListId = null;\nlet existingListName = null; // Eşleşen listenin adını da saklayabiliriz (opsiyonel)\n\nfor (const list of existingLeadLists) {\n  if (list.name && list.name.trim() === leadListNameToFind.trim()) {\n    listExists = true;\n    existingListId = list.id;\n    existingListName = list.name; // Eşleşen listenin tam adını al\n    break; // Eşleşme bulundu, döngüden çık\n  }\n}\n\n// Sonucu döndür\nreturn [{ // n8n Code nodu genellikle bir dizi öğe döndürür\n  json: {\n    listExists: listExists,\n    leadListName: leadListNameToFind, // Aranan liste adını tekrar ilet\n    leadListId: existingListId,       // Bulunan liste ID'si (yoksa null)\n    matchedListName: existingListName // Eşleşen listenin adı (yoksa null, hata ayıklama için)\n  }\n}];"
+      },
+      "id": "184ff6fd-ec09-44cb-baa9-9da57e6555c5",
+      "name": "Code (Find Existing Lead List or Prepare New - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.listExists }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "e17fce24-5093-4e0a-a488-914dc8a8c06b",
+      "name": "IF (Instantly Lead List Exists?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3440,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/lead-lists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.leadListName }}"
+            },
+            {
+              "name": "has_enrichment_task",
+              "value": "=false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "58bfc18a-0dfa-4ac4-8bc3-4beda3145261",
+      "name": "HTTP Request (Create Lead List on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        3920,
+        0
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "3b21ab7e-0136-45d0-8129-2af04853cac9",
+      "name": "Merge (Consolidate Lead List ID)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        3700,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- AYARLAR: Bu alanları kolayca değiştirebilirsiniz ---\n// Bir ekip üyesinin ID'si. Instantly'de Settings > Team altından bulunur.\nconst ASSIGNED_TO_USER_ID = \"bd3add6d-ad16-4451-b231-e7101b08a9f7\"; // Resimden alınan örnek ID\n\n// --- KOD BAŞLANGICI ---\n\n// Gerekli verileri önceki adımlardan alalım\nconst lead = $('Set (Current Lead Data)').first().json;\nconst listData = $('Set (Standardize Lead List ID)').first().json;\n\n// Liste ID'sini belirle\nconst listIdToUse = listData.finalLeadListId;\n\n// E-posta adresini öncelik sırasına göre bul\nconst emailToUse = lead.email1 || lead.email || lead.manager_mail1 || null;\n\n// İsim ve soyisimi 'manager1' alanından ayır\nlet firstName = null;\nlet lastName = null;\nif (lead.manager1 && typeof lead.manager1 === 'string') {\n  const nameParts = lead.manager1.split(' ');\n  firstName = nameParts.shift();\n  lastName = nameParts.join(' ') || null;\n}\n\n// Şehir bilgisini adresten çıkar\nlet city = null;\ntry {\n  if (lead.address) {\n    const addressParts = lead.address.split(',');\n    if (addressParts.length > 1) {\n      city = addressParts[1].replace(/\\d+/g, '').trim();\n    }\n  }\n} catch (e) {\n  console.log(\"Şehir bilgisi adresten çıkarılamadı.\");\n}\n\n// Instantly.ai'ye gönderilecek EN ZENGİN payload'ı oluştur\nconst instantlyLeadPayload = {\n  // Temel Bilgiler\n  list_id: listIdToUse,\n  email: emailToUse,\n  first_name: firstName,\n  last_name: lastName,\n  company_name: lead.name || lead.company_name1,\n  phone: lead.phone_number || null,\n  website: lead.website || null,\n  category: lead.category, // Örn: Raumausstatter\n\n  // Resimden Gelen Zenginleştirilmiş Alanlar\n  assigned_to: ASSIGNED_TO_USER_ID,\n  \n  // Bu basit kişiselleştirme alanını, e-posta sekansında daha karmaşık metinler\n  // kullanacağımız için boş bırakmak veya basit bir metin girmek daha mantıklıdır.\n  personalization: `Hallo ${firstName || ''}, Ihr Unternehmen ${lead.name} ist uns aufgefallen.`,\n\n  // Veri Temizliği ve Doğrulama Ayarları\n  skip_if_in_workspace: true,\n  skip_if_in_campaign: true,\n  skip_if_in_list: true,\n  verify_leads_on_import: true, // E-postayı içe aktarırken doğrula\n\n  // Özel Değişkenler (EN KRİTİK DEĞİŞİKLİK)\n  custom_variables: {\n    \"anrede\": lead.manager_anrede || 'Sehr geehrte Damen und Herren',\n    \"branche\": lead.category,\n    \"stadt\": city,\n    \"yaska_sektor_tr\": lead.yaska_sector_tr,\n    \"kategori_grubu_tr\": lead.category_group_tr,\n    \"comment_count\": lead.comment_count || 0,\n    \"comment_avg\": lead.comment_avg || null,\n    // Resimden gelen ek özel değişkenler\n    \"past_customer\": false, // Bunu kendi veritabanınıza göre dinamik yapabilirsiniz\n    \"has_tried_competitors\": false // Bunu da dinamik yapabilirsiniz\n  },\n\n  // DOKÜMANTASYONDA OLMAYAN ALANLAR (Test edilmesi gerekir)\n  // Bu alanların çalıştığı garanti değildir, resimdeki yapıya göre eklenmiştir.\n  \"lt_interest_status\": 1,\n  \"pl_value_lead\": \"High\",\n};\n\n// Sonucu bir sonraki düğüme aktar\nreturn {\n  json: {\n    currentLead :lead, \n    instantlyLeadPayload: instantlyLeadPayload\n  }\n};"
+      },
+      "id": "4bb727f1-7f6b-48f7-8238-c73d513a46e4",
+      "name": "Code (Build Instantly Lead Body - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4160,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.instantlyLeadPayload)}}",
+        "options": {}
+      },
+      "id": "08504d50-89a8-434b-88b0-895f45647284",
+      "name": "HTTP Request (Add Lead to Instantly List)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        4420,
+        260
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.payload.isNotEmpty() & $json.upload_method == 'api' & $json.timestamp_created.isNotEmpty()}}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "a92aa227-9276-48db-a0fd-d01abe56cb0e",
+      "name": "IF (Lead Added to Instantly List Successfully?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        4660,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: See instructions for full code.\n// This node prepares campaign name and sequence details.\nreturn { json: { campaignName: 'Example Campaign', sequence: {}, campaignSchedule: {} } };"
+      },
+      "id": "a1cab290-258f-4735-8451-3a5cdd12312e",
+      "name": "Code (Prepare Campaign Name & Sequence Details - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4700,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.instantly.ai/api/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "03c82097-53b7-41cd-b8ba-8bd05fe1e9d7",
+      "name": "HTTP Request (Get Existing Campaigns on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        4940,
+        100
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: See instructions for full code.\n// This node finds an existing campaign or prepares data for a new one.\nreturn { json: { campaignExists: false, campaignName: 'Example Campaign' } };"
+      },
+      "id": "6a61d389-e831-4fee-951f-245017a720d0",
+      "name": "Code (Find Existing Campaign or Prepare New - Placeholder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.campaignExists }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "ae9ac038-01df-4c31-8efd-33a6c91d9697",
+      "name": "IF (Instantly Campaign Exists?)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        5440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.campaignName, status: 0, campaign_schedule: $json.campaignSchedule, sequences: [$json.sequence], is_evergreen: false, text_only: false, link_tracking: true, open_tracking: true, stop_on_reply: true, stop_on_auto_reply: true }) }}",
+        "options": {}
+      },
+      "id": "384a4094-dfdc-48e5-a15f-3ff9f5558347",
+      "name": "HTTP Request (Create Campaign on Instantly)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5700,
+        0
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "10f844c5-62ff-4a7f-b374-8cf9c6871208",
+      "name": "Merge (Consolidate Campaign ID and Data)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        5700,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.instantly.ai/api/v2/campaigns/{{ $json.campaignId || $json.id }}/add-lists",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_list_ids: [ $('Merge (Consolidate Lead List ID)').item.json.leadListId || $('Merge (Consolidate Lead List ID)').item.json.id ] }) }}",
+        "options": {}
+      },
+      "id": "f34d8731-0a8a-44ae-bb23-81a410a49436",
+      "name": "HTTP Request (Add Lead List to Instantly Campaign)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5700,
+        500
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.instantly.ai/api/v2/campaigns/{{ $json.campaignId || $json.id }}/activate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "id": "fa95bebd-3040-44d8-b4cf-0f3c04e2b0c6",
+      "name": "HTTP Request (Activate Instantly Campaign)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        5340,
+        480
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "DtnJp1xRGQ7OoYVT",
+          "name": "Bearer Auth İnstantly"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.cold_reach_leads\nSET pipelined = 1, mailing_platform = 'instantly.ai'\nWHERE id = {{ $('Set (Current Lead Data)').item.json.current_lead.id }};",
+        "options": {}
+      },
+      "id": "b25e947d-666f-432c-81eb-6321e30c8145",
+      "name": "MySQL (Update cold_reach_leads - Success)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        4980,
+        520
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.cold_reach_leads\nSET pipelined = 1, mailing_platform = 'instantly.ai'\nWHERE id = {{ $('Code (Build Instantly Lead Body - Placeholder)').first().json.currentLead.id}}; ",
+        "options": {}
+      },
+      "id": "81b312af-a45d-4e3e-803c-c61b099e088a",
+      "name": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        4660,
+        460
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.cold_reach_leads\nSET \n    pipelined = 3,  -- 3: E-posta Yok/Geçersiz (veya sizin belirleyeceğiniz bir durum kodu)\n    mailing_platform = 'no_valid_email_found',\n    updated_at = NOW() -- Opsiyonel: Son işlem zamanını kaydetmek için\nWHERE \n    id = {{ $json.id }}\nAND cid = '{{ $json.cid }}' -- Eğer 'id' tek başına benzersiz değilse, cid ile birlikte kullanabilirsiniz. Genellikle id yeterlidir.\n;",
+        "options": {}
+      },
+      "id": "da310126-8399-4dfd-a3b1-daea5b2c8615",
+      "name": "MySQL (Update cold_reach_leads - No Email)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        2460,
+        460
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "fe70bbe8-0fc3-4d74-9b0a-c63ad50eef56",
+      "name": "No Operation (Loop Iteration End)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2180,
+        700
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "10c4c521-176e-4f3b-a4a8-218c84d250f1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        80,
+        880
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0e51ea4c-3cd0-427e-ad20-1eedbae9fc3c",
+      "name": "Process Error",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        380,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $(\"Code (Prepare Final Category Data - Placeholder)\").item.json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1220,
+        580
+      ],
+      "id": "056afd2f-9c4d-49d4-9900-377b24d0319d",
+      "name": "Set (Pass Through Categorized Lead Data)"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $(\"Code (Prepare Final Category Data - Placeholder)\").item.json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        380
+      ],
+      "id": "1e06add4-562b-4394-8ca9-639a9e2c0e90",
+      "name": "Set (Pass Through Categorized Lead Data)1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a783ca2-ed1c-4a9a-adbf-0eb5622ff889",
+              "name": "finalLeadListId",
+              "value": "={{ $json.id || $json.leadListId }}",
+              "type": "string"
+            },
+            {
+              "id": "3787a207-ba7c-4e2d-b2cb-9f5421cf05f5",
+              "name": "finalLeadListName",
+              "value": "={{ $json.leadListName|| $json.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3920,
+        260
+      ],
+      "id": "0284b6c1-b3dc-48ac-ad96-90e774670ca6",
+      "name": "Set (Standardize Lead List ID)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE lead_db.cold_reach_leads\nSET pipelined = 2, mailing_platform = 'instantly_add_lead_fail'\nWHERE id = {{ $('Code (Build Instantly Lead Body - Placeholder)').first().json.currentLead.id}};",
+        "options": {}
+      },
+      "id": "882dcd44-1719-4a58-8acb-7bfb5745e696",
+      "name": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        4960,
+        380
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \n  \"final_categorization\": {\n    \"yaska_sector\": {\n      \"yaska_tr\": \"{{ $json.yaska_sector_tr || 'Diğer/Bilinmeyen' }}\",\n      \"yaska_en\": \"{{ $json.yaska_sector_en || 'Other/Unknown' }}\",\n      \"yaska_de\": \"{{ $json.yaska_sector_de || 'Sonstige/Unbekannt' }}\",\n      \"match_type\": \"pre_existing_in_db\"\n    },\n    \"general_poi\": {\n      \"original_german_category\": \"{{ $json.category }}\",\n      \"mapped_poi_category_english\": \"{{ $json.category_group_en || 'Unknown' }}\",\n      \"mapped_poi_category_german\": \"{{ $json.category_group }}\",\n      \"mapped_poi_category_turkish\": \"{{ $json.category_group_tr }}\",\n      \"source\": \"pre_existing_in_db\"\n    }\n  }, \n  \"original_german_category\": \"{{ $json.category }}\",\n  \"category_group_en\": \"{{ $json.category_group_en || 'Unknown' }}\",\n  \"category_group_de\": \"{{ $json.category_group }}\",\n  \"category_group_tr\": \"{{ $json.category_group_tr }}\",\n  \"yaska_sector_tr\": \"{{ $json.yaska_sector_tr || 'Diğer/Bilinmeyen' }}\",\n  \"yaska_sector_de\": \"{{ $json.yaska_sector_de || 'Sonstige/Unbekannt' }}\",\n  \"yaska_sector_en\": \"{{ $json.yaska_sector_en || 'Other/Unknown' }}\"\n}",
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        200
+      ],
+      "id": "108ef7b6-d628-4244-b1da-52278982bc79",
+      "name": "Set (Format Pre-Categorized Lead)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM lead_db.lead_category"
+      },
+      "id": "086941f1-539e-4ecd-86ed-4cb63b089801",
+      "name": "MySQL (Get lead_category Table)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 1,
+      "position": [
+        760,
+        640
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM lead_db.cold_reach_leads\n-- SET \nWHERE    pipelined = 3 AND -- 3: E-posta Yok/Geçersiz (veya sizin belirleyeceğiniz bir durum kodu)\n    mailing_platform = 'no_valid_email_found'\nORDER BY    updated_at DESC -- Opsiyonel: Son işlem zamanını kaydetmek için\n-- WHERE \n--    id = {{ $json.id }}\n-- AND cid = '{{ $json.cid }}' -- Eğer 'id' tek başına benzersiz değilse, cid ile birlikte kullanabilirsiniz. Genellikle id yeterlidir.\n;",
+        "options": {}
+      },
+      "id": "937c8b2b-e35f-4598-87d7-66d02a33cdcf",
+      "name": "MySQL (get cold_reach_leads - No Email)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        2460,
+        720
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OfKRrx0fPWvcr1jS",
+          "name": "MySQL account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch New Leads from MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch New Leads from MySQL": {
+      "main": [
+        [
+          {
+            "node": "IF (POI Category Group Missing?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (POI Category Group Missing?)": {
+      "main": [
+        [
+          {
+            "node": "Code (Attempt POI DB Match - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set (Format Pre-Categorized Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Attempt POI DB Match - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "IF (LLM Lookup Needed?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (LLM Lookup Needed?)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare LLM Prompt - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge (LLM and DB Categorization Results)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code (Prepare LLM Prompt - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code (Parse LLM Response - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Parse LLM Response - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "Merge (LLM and DB Categorization Results)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (LLM and DB Categorization Results)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare Final Category Data - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Final Category Data - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "MySQL (Update lead_category Table)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update lead_category Table)": {
+      "main": [
+        [
+          {
+            "node": "IF (lead_category Update OK?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (lead_category Update OK?)": {
+      "main": [
+        [
+          {
+            "node": "Set (Pass Through Categorized Lead Data)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set (Pass Through Categorized Lead Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Combine All Leads Post-Categorization)": {
+      "main": [
+        [
+          {
+            "node": "Set (Enrich Leads with Final Category Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Enrich Leads with Final Category Data)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Set (Current Lead Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Current Lead Data)": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead Has Valid Email?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead Has Valid Email?)": {
+      "main": [
+        [
+          {
+            "node": "Code (Prepare Lead List Name - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL (Update cold_reach_leads - No Email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Lead List Name - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Get Existing Lead Lists on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Get Existing Lead Lists on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Code (Find Existing Lead List or Prepare New - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Find Existing Lead List or Prepare New - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "IF (Instantly Lead List Exists?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Instantly Lead List Exists?)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Lead List ID)",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request (Create Lead List on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Create Lead List on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Lead List ID)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Consolidate Lead List ID)": {
+      "main": [
+        [
+          {
+            "node": "Set (Standardize Lead List ID)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Build Instantly Lead Body - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Add Lead to Instantly List)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Add Lead to Instantly List)": {
+      "main": [
+        [
+          {
+            "node": "IF (Lead Added to Instantly List Successfully?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Lead Added to Instantly List Successfully?)": {
+      "main": [
+        [
+          {
+            "node": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Prepare Campaign Name & Sequence Details - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Get Existing Campaigns on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Get Existing Campaigns on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Code (Find Existing Campaign or Prepare New - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code (Find Existing Campaign or Prepare New - Placeholder)": {
+      "main": [
+        [
+          {
+            "node": "IF (Instantly Campaign Exists?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Instantly Campaign Exists?)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Campaign ID and Data)",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request (Create Campaign on Instantly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Create Campaign on Instantly)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Consolidate Campaign ID and Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Consolidate Campaign ID and Data)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Add Lead List to Instantly Campaign)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Add Lead List to Instantly Campaign)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Activate Instantly Campaign)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Activate Instantly Campaign)": {
+      "main": [
+        [
+          {
+            "node": "MySQL (Update cold_reach_leads - Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update cold_reach_leads - Success)": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update cold_reach_leads - No Email)": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation (Loop Iteration End)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Pass Through Categorized Lead Data)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Combine All Leads Post-Categorization)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set (Pass Through Categorized Lead Data)1": {
+      "main": [
+        [
+          {
+            "node": "Merge (Combine All Leads Post-Categorization)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Set (Standardize Lead List ID)": {
+      "main": [
+        [
+          {
+            "node": "Code (Build Instantly Lead Body - Placeholder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL (Update cold_reach_leads - Instantly Add Lead Fail)1": {
+      "main": [
+        [
+          {
+            "node": "No Operation (Loop Iteration End)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set (Format Pre-Categorized Lead)": {
+      "main": [
+        [
+          {
+            "node": "Merge (Combine All Leads Post-Categorization)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}

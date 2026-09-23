@@ -1,0 +1,287 @@
+{
+  "name": "n8n Developer Agent (File Upload)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "developer-agent",
+        "options": {
+          "binaryData": true
+        }
+      },
+      "id": "83c5d4e2-4b8a-4c5e-9f1a-2d3b4c5e6f7g",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "developer-agent-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "operation": "exists"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.body.file }}",
+              "rightValue": "",
+              "operation": "exists"
+            }
+          ],
+          "combineOperation": "any"
+        }
+      },
+      "id": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
+      "name": "Check File Upload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "b2c3d4e5-6f7g-8h9i-0j1k-2l3m4n5o6p7q",
+      "name": "Extract File Content",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kullanıcı sorgusunu al\nconst userQuery = $input.first().json.body.query || '';\n\n// Dosya içeriğini al (varsa)\nlet fileContent = '';\nif ($input.first().json.body.file) {\n  // Dosya yüklenmişse, önceki adımdan gelen içeriği kullan\n  const previousData = $input.all();\n  for (const item of previousData) {\n    if (item.json.text) {\n      fileContent = item.json.text;\n      break;\n    }\n  }\n}\n\n// Sorguyu ve dosya içeriğini birleştir\nlet combinedQuery = userQuery;\nif (fileContent) {\n  combinedQuery = `${userQuery} - Dosya İçeriği: ${fileContent}`;\n}\n\n// URL'leri ayıkla\nconst urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\nconst urls = [];\nconst urlMatches = combinedQuery.match(urlRegex);\nif (urlMatches) {\n  urls.push(...urlMatches);\n}\n\n// Zenginleştirilmiş sorguyu oluştur\nconst enrichedQuery = `n8n developer agent tarafından iyileştirilmiş sorgu: ${combinedQuery}`;\n\n// Sonuç formatını oluştur\nconst result = {\n  query: enrichedQuery,\n  sources: urls\n};\n\nreturn result;"
+      },
+      "id": "c3d4e5f6-7g8h-9i0j-1k2l-3m4n5o6p7q8r",
+      "name": "Process and Combine Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sadece kullanıcı sorgusunu işle (dosya yok)\nconst userQuery = $json.body.query || '';\n\n// URL'leri ayıkla\nconst urlRegex = /https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)/g;\nconst urls = [];\nconst urlMatches = userQuery.match(urlRegex);\nif (urlMatches) {\n  urls.push(...urlMatches);\n}\n\n// Zenginleştirilmiş sorguyu oluştur\nconst enrichedQuery = `n8n developer agent tarafından iyileştirilmiş sorgu: ${userQuery}`;\n\n// Sonuç formatını oluştur\nconst result = {\n  query: enrichedQuery,\n  sources: urls\n};\n\nreturn result;"
+      },
+      "id": "d4e5f6g7-8h9i-0j1k-2l3m-4n5o6p7q8r9s",
+      "name": "Process Query Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.workflowBuilderUrl || 'https://your-workflow-builder-endpoint.com/api/create' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "sources",
+              "value": "={{ $json.sources }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5f6g7h8-9i0j-1k2l-3m4n-5o6p7q8r9s0t",
+      "name": "Send to Workflow Builder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"İstek başarıyla Workflow Builder'a gönderildi\", \"data\": $json } }}"
+      },
+      "id": "f6g7h8i9-0j1k-2l3m-4n5o-6p7q8r9s0t1u",
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## n8n Developer Agent Başlangıç\n\nBu webhook POST isteklerini kabul eder:\n- query: Kullanıcı sorgusu (zorunlu)\n- file: Yüklenecek dosya (isteğe bağlı)\n\nÖrnek istek:\n```json\n{\n  \"query\": \"Bir e-ticaret sitesi için sipariş takip sistemi oluştur\",\n  \"file\": \"dosya_içeriği_buraya\"\n}\n```",
+        "height": 160,
+        "width": 280,
+        "color": 4
+      },
+      "id": "g7h8i9j0-1k2l-3m4n-5o6p-7q8r9s0t1u2v",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        40,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Dosya Kontrolü\n\nGelen istekte dosya var mı kontrol edilir:\n- Varsa: Dosya içeriği ayıklanır\n- Yoksa: Sadece sorgu işlenir\n\nDesteklenen dosya türleri:\n- JSON\n- TXT\n- Diğer metin tabanlı formatlar",
+        "height": 140,
+        "width": 260,
+        "color": 5
+      },
+      "id": "h8i9j0k1-2l3m-4n5o-6p7q-8r9s0t1u2v3w",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        360,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Veri İşleme\n\nKullanıcı sorgusu ve dosya içeriği birleştirilir:\n1. Sorgu + dosya içeriği kombinasyonu\n2. URL'ler ayıklanır\n3. n8n developer agent tarafından iyileştirilir\n4. Belirtilen formatta hazırlanır",
+        "height": 120,
+        "width": 280,
+        "color": 6
+      },
+      "id": "i9j0k1l2-3m4n-5o6p-7q8r-9s0t1u2v3w4x",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        780,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Workflow Builder'a Gönderim\n\n⚠️ YAPILACAK: Workflow Builder URL'ini yapılandırın\n\nGönderilecek format:\n```json\n{\n  \"query\": \"iyileştirilmiş_sorgu\",\n  \"sources\": [\"url1\", \"url2\"]\n}\n```",
+        "height": 120,
+        "width": 240,
+        "color": 7
+      },
+      "id": "j0k1l2m3-4n5o-6p7q-8r9s-0t1u2v3w4x5y",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check File Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check File Upload": {
+      "main": [
+        [
+          {
+            "node": "Extract File Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Query Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File Content": {
+      "main": [
+        [
+          {
+            "node": "Process and Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process and Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Send to Workflow Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Query Only": {
+      "main": [
+        [
+          {
+            "node": "Send to Workflow Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Workflow Builder": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}

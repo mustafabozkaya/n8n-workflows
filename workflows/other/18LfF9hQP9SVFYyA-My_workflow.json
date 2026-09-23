@@ -1,0 +1,740 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://queue.fal.run/fal-ai/veo3",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.output.replace(/\\n/g, '').replace(/\"/g, '') }}"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            },
+            {
+              "name": "generate_audio",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        440
+      ],
+      "id": "f3c249b8-b6dc-4eba-bf4a-abb3d2ff90dd",
+      "name": "Generate Video",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jE9b0JxVs0Jxz6fn",
+          "name": "Header Auth Firecrawl "
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://queue.fal.run/fal-ai/veo3/requests/{{ $json.request_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        320
+      ],
+      "id": "a4e549e9-4256-4688-b217-cb8385c44515",
+      "name": "Get Result",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "jE9b0JxVs0Jxz6fn",
+          "name": "Header Auth Firecrawl "
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c66c7c13-57ca-4191-9af3-5ab306dfedfc",
+              "name": "Video URL",
+              "value": "={{ $json.video.url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1600,
+        540
+      ],
+      "id": "ddd4f825-5a5c-4f93-ad3d-2b2cf3ac73e1",
+      "name": "Result"
+    },
+    {
+      "parameters": {
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        460
+      ],
+      "id": "048efb83-baa3-478c-94fd-46e435d1b33c",
+      "name": "5 Minutes",
+      "webhookId": "caad73e3-58d8-4fbd-a3e9-c42424f2d1ee"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        620,
+        100
+      ],
+      "id": "4a4c528f-7d07-4557-8b23-e275ad0390b1",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E",
+          "mode": "list",
+          "cachedResultName": "Glass Fruit ASMR",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        820,
+        100
+      ],
+      "id": "be5e58d2-f771-43ae-bd63-2feeb9ab9a59",
+      "name": "Get Past Objects",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YRUyHEy8Yi0jLuK2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output.object }}",
+        "options": {
+          "systemMessage": "=# Overview\nYou are an AI agent that specializes in generating text-to-video prompts optimized for ASMR-style videos using Google Veo 3. These videos must be 9:16 aspect ratio.\n\nYou will receive the name of a glass object (e.g. \"glass apple\", \"glass mushroom\", \"glass croissant\"). Your task is to generate a hyper-realistic, sensory-rich video prompt of that object being cut in a close-up ASMR scene.\n\n## Core Requirements:\n- The video must feel cinematic and photorealistic.\n- Scene is a static, close-up shot of a dark wooden cutting board and a large, heavy steel knife.\n- Cutting must look physically possible — glass should break cleanly, not shatter, with smooth, controlled slices.\n- The video starts immediately with the cutting action.\n- The object must retain some color (e.g. red glass apple, green glass pear) — not fully transparent — to create visual contrast.\n- No humans visible. Only one hand holding the knife, the other stabilizing the object.\n- The cut should include **four distinct ASMR sound layers**:\n  1. The sharp tap of the knife touching the glass  \n  2. The smooth, controlled slicing sound through the glass  \n  3. The soft thud as the knife hits the board  \n  4. The delicate clink as the cut piece lands on the board  \n- The **initial knife-glass contact should sound especially crisp and prominent**, like metal striking polished glass.\n\n## Prompt Requirements\n1. **Scene Description**: Detail the board material (e.g. walnut), light setup (e.g. soft top-down), and camera style.\n2. **Object Detail**: Describe the object’s color, shape, texture, and reflective qualities.\n3. **Cutting Action**: Describe the cut from start to finish with a smooth break — no splintering or shattering.\n4. **Sound Design**: Use vivid language to highlight the four-layer audio experience:\n   - Knife-glass contact\n   - The clean slice through colored glass\n   - The thud of knife on wood\n   - The glass piece gently hitting the board\n5. **Ambience**: Total silence except for cutting sounds. No music, talking, or background noise.\n\n## Format Output Like This:\n\n**Subject**: A hyper-detailed [glass object] resting on a dark wooden cutting board.  \n**Setting**: Static close-up, soft natural lighting, minimal background.  \n**Action**: A large steel knife slowly slices through the [glass object], breaking it into perfect segments with a deliberate, cinematic cut.  \n**Style**: Cinematic ASMR realism, photorealistic lighting and textures.  \n**Sound**: Four high-fidelity sound layers in each cut — (1) ultra high definition sound as the knife makes contact with the glass, (2) a clean, smooth slicing sound, (3) a muted wooden thud, and (4) a precise clink as each piece lands. The initial tap should be especially sharp and prominent, emphasizing the contact of steel on glass. No other audio.  \n**Camera Motion**: Fixed camera with slight focus shifts during movement.  \n**Composition**: Centered object, knife enters from edge.  \n**Ambiance**: Pin-drop silence around the cutting sounds.  \n**Aspect Ratio**: Always 9:16\n\nMake the viewer feel immersed — like they can hear and feel every slice. Visually surreal, physically satisfying."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        620,
+        440
+      ],
+      "id": "b987638c-4519-4697-8583-99f8c5e8acd1",
+      "name": "Prompt Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Objects: {{ $json.objects.join(\", \") }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=# Overview  \nYou are an AI agent that selects unique **fruits** for ASMR-style glass cutting videos.\n\n## Your Task  \nYou will receive a list of 7 fruits that have already been used.  \nYour job is to generate **one new fruit** that is **not on that list**, and would look visually compelling if it were made of **glass** and cut with a knife in a close-up ASMR video.\n\n## Requirements\n- The fruit must **not repeat** any of the 7 provided items.  \n- The fruit must have a **clear, recognizable shape** and be **physically feasible** to cut with a knife (even if it’s made of glass).  \n- Prioritize fruits that would look **aesthetic and interesting** with a translucent, colored glass texture.  \n- Do **not** explain or describe the fruit.\n\n## Output Format  \nOutput a JSON object with the following structure:\n\n{\n  \"object\": \"Glass [Object name]\",\n  \"caption\": \"Glass [Object name] ASMR\"\n}\n\nReplace `[object name]` with the newly generated fruit. Do not include any punctuation or commentary.\n\n## Example Output  \n{\n  \"object\": \"Glass Apple\",\n  \"caption\": \"Glass Apple ASMR\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        60
+      ],
+      "id": "185b9fe6-56dc-40d2-9db0-b55d1de1b03c",
+      "name": "Idea Agent"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        100
+      ],
+      "id": "3cd4b354-46d0-4a43-8cd8-952b2f697aca",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cf818c10-ad6d-4349-830f-393529a79d62",
+              "name": "objects",
+              "value": "=[\"{{ $json.data[0].Object }}\",\"{{ $json.data[1].Object }}\",\"{{ $json.data[2].Object }}\",\"{{ $json.data[3].Object }}\",\"{{ $json.data[4].Object }}\",\"{{ $json.data[5].Object }}\",\"{{ $json.data[6].Object }}\"]",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1180,
+        100
+      ],
+      "id": "b434cd0d-651e-424e-af68-9e7cc8d10955",
+      "name": "Set Object List"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"post\": {\n    \"target\": {\n      \"targetType\": \"youtube\",\n      \"title\": \"{{ $('Idea Agent').item.json.output.caption }}\",\n      \"privacyStatus\": \"public\",\n      \"shouldNotifySubscribers\": false\n    },\n    \"content\": {\n      \"text\": \"{{ $('Idea Agent').item.json.output.caption }}\",\n      \"platform\": \"youtube\",\n      \"mediaUrls\": [\"{{ $json.url }}\"]\n    },\n    \"accountId\": \"YOUR ACCOUNT ID\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        760
+      ],
+      "id": "deb25f30-2c2b-4b25-a86d-2b75593c4379",
+      "name": "YouTube",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"post\": {\n    \"target\": {\n      \"targetType\": \"tiktok\",\n      \"isYourBrand\": false,\n      \"disabledDuet\": false,\n      \"privacyLevel\": \"PUBLIC_TO_EVERYONE\",\n      \"isAiGenerated\": true,\n      \"disabledStitch\": false,\n      \"disabledComments\": false,\n      \"isBrandedContent\": false\n    },\n    \"content\": {\n      \"text\": \"{{ $('Idea Agent').item.json.output.caption }}\",\n      \"platform\": \"tiktok\",\n      \"mediaUrls\": [\"{{ $json.url }}\"]\n    },\n    \"accountId\": \"YOUR ACCOUNT ID\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        760
+      ],
+      "id": "82c624e8-5ec3-47ef-be98-c2a01b3ede5c",
+      "name": "TikTok",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"post\": {\n    \"target\": {\n      \"targetType\": \"instagram\"\n    },\n    \"content\": {\n      \"text\": \"{{ $('Idea Agent').item.json.output.caption }}\",\n      \"platform\": \"instagram\",\n      \"mediaUrls\": [\"{{ $json.url }}\"]\n    },\n    \"accountId\": \"YOUR ACCOUNT ID\"\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        760
+      ],
+      "id": "5cbf7c14-941a-427c-8c8e-a3f59cc41844",
+      "name": "Instagram",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.URL }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        760
+      ],
+      "id": "c6bc6ed6-d9f2-4ea3-9637-5884a2409ce9",
+      "name": "Upload to Blotato"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E",
+          "mode": "list",
+          "cachedResultName": "Glass Fruit ASMR",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E/edit#gid=0"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        660,
+        760
+      ],
+      "id": "3ae098e6-609f-4d1e-8b7a-8fc5b04be14b",
+      "name": "Delete First Row",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YRUyHEy8Yi0jLuK2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E",
+          "mode": "list",
+          "cachedResultName": "Glass Fruit ASMR",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1J_DG4prhJbc98tK7rhpeR9ValD78mSOvgXEf4cuvB7E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1RW6sUbA8M2mkhrEgK4AfR_PZJajkXFT5FcTcrQ8C0JE/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Object": "={{ $('Idea Agent').item.json.output.object }}",
+            "URL": "={{ $('Result').item.json['Video URL'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Object",
+              "displayName": "Object",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        840,
+        760
+      ],
+      "id": "a83bf2c3-8c16-4a36-b4fc-94be6a7e7edc",
+      "name": "Append Object",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YRUyHEy8Yi0jLuK2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"object\": {\n      \"type\": \"string\",\n      \"description\": \"A new object name in the format 'glass [object]', all lowercase with no punctuation.\"\n    },\n    \"caption\": {\n      \"type\": \"string\",\n      \"description\": \"A caption in the format 'glass [object] ASMR', matching the object field exactly.\"\n    }\n  },\n  \"required\": [\"object\", \"caption\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1540,
+        180
+      ],
+      "id": "164c1b89-21ba-4e65-a68a-60f82bf594dd",
+      "name": "Object & Caption"
+    },
+    {
+      "parameters": {
+        "content": "# Part 1) Idea Generation",
+        "height": 300,
+        "width": 1140,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        0
+      ],
+      "id": "5437b24c-f25b-4fa1-9b25-b552ff829bcb",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# Part 2) Video Generation",
+        "height": 300,
+        "width": 1140,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        320
+      ],
+      "id": "590d0cb3-093e-45a3-bf8c-7b10a062c4fe",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# Part 3) Posting to Socials",
+        "height": 300,
+        "width": 1140,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        640
+      ],
+      "id": "019ad13c-bab7-497f-8406-168bd83226e7",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        580
+      ],
+      "id": "cb5731c5-a1d6-415c-b835-4ed0ae102f93",
+      "name": "30 Seconds",
+      "webhookId": "5f6bbd1e-a155-48de-b737-a225c6fd7a84"
+    },
+    {
+      "parameters": {
+        "content": "# 🛠️ Setup Guide  \n**Author:** [Nate Herk](https://www.youtube.com/@nateherk)\n\nFollow these steps to get your workflow fully functional:\n\n### ✅ Step 1: Connect Your [OpenRouter](https://openrouter.ai/) API Key  \nThis powers the AI agents. Ensure your key is active and integrated via OpenRouter chat models.\n\n### ✅ Step 2: Connect Your Fal AI API Key  \nEnter your API key securely in the HTTP Request nodes in Part 2.\n\n### ✅ Step 3: Connect [Blotato](https://blotato.com/?ref=nate) + Your Social IDs  \n💸 Use code **NATE30** for **30% off for 6 months**\n- Add your **Blotato API key**  \n- Enter your **YouTube**, **Instagram**, and **TikTok account IDs**  \n\n\n### ✅ Step 4: Copy This [Google Sheet Template](https://docs.google.com/spreadsheets/d/1lBLtXzxhhQiaJZR2EbYTwvMENnp8GnfU03KERpbMCBI/edit?usp=sharing)  \nMake a copy to your Google Drive, then connect the Google Sheets node to your version of the template.\n\n### 🚀 Final Step: Test the Flow  \nTrigger the workflow and verify that data flows through each service as expected.\n",
+        "height": 940,
+        "width": 540
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "aeac76bc-0dcf-4c84-8ec7-176bb875ab15",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        320
+      ],
+      "id": "f0654829-1ce2-47fc-a170-4161d2da444c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "M070Fl5hP3UKdpxt",
+          "name": "OpenAi account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Generate Video": {
+      "main": [
+        [
+          {
+            "node": "5 Minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Result": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result": {
+      "main": [
+        [
+          {
+            "node": "Delete First Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Past Objects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Past Objects": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Agent": {
+      "main": [
+        [
+          {
+            "node": "Generate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idea Agent": {
+      "main": [
+        [
+          {
+            "node": "Prompt Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Set Object List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Object List": {
+      "main": [
+        [
+          {
+            "node": "Idea Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Blotato": {
+      "main": [
+        [
+          {
+            "node": "YouTube",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete First Row": {
+      "main": [
+        [
+          {
+            "node": "Append Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Object": {
+      "main": [
+        [
+          {
+            "node": "Upload to Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Object & Caption": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Idea Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Get Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Idea Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Prompt Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

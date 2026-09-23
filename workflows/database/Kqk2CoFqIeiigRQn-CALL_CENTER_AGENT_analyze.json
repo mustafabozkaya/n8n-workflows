@@ -1,0 +1,505 @@
+{
+  "name": "CALL_CENTER_AGENT_analyze",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "3e45df72-f9cb-444f-9d87-5365b99bcfb9",
+      "name": "Call Processing Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        3860,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = false AND url IS NOT NULL AND url <> '' LIMIT 10",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4060,
+        260
+      ],
+      "id": "98025641-06a3-4b1f-8b01-803025eee0fb",
+      "name": "get calls",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4260,
+        260
+      ],
+      "id": "e27987e7-78c7-436f-b037-8902fbe92a49",
+      "name": "get call file",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst fileName = item.json.url || '';\nlet callDirection = '';\nif (fileName.toLowerCase().includes('inbound')) { callDirection = 'inbound'; }\nelse if (fileName.toLowerCase().includes('outbound')) { callDirection = 'outbound'; }\nelse { callDirection = 'inbound'; }\nreturn [{ json: { ...item.json, callDirection }, binary: item.binary }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4460,
+        260
+      ],
+      "id": "8b7185e5-4594-4118-8188-fe566fd4ee0e",
+      "name": "inbound&outbound"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "outbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "4d65a5f4-ad17-4553-ae50-a062df9e871f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "outbound"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "inbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d52417bf-aa53-40ba-b0bf-c17d7308a625"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        4660,
+        260
+      ],
+      "id": "1d98465e-7a50-4512-970e-cacdf93c2461",
+      "name": "Switch folder"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/inbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        4860,
+        360
+      ],
+      "id": "74c13138-1f3d-43f3-8ddf-b356acb5d572",
+      "name": "upload S3 inbound",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "=callintech",
+        "fileName": "=calls/outbound/{{$json[\"callid\"]}}.wav",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        4860,
+        160
+      ],
+      "id": "9426178a-b534-4161-af7a-56f6dd071f43",
+      "name": "upload S3 outbound",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET s3_uploaded = true WHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "id": "f917152b-4dc7-4661-950a-461b8a70d999",
+      "name": "Update S3 Uploaded",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5060,
+        260
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "bucketName": "callintech",
+        "fileKey": "={{ $json.Key }}"
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        5160,
+        700
+      ],
+      "id": "62c490a4-ecba-426e-93fb-9b8c751ca90d",
+      "name": "download S3 binary file",
+      "credentials": {
+        "aws": {
+          "id": "Tr2NKuw2jYPvX23Q",
+          "name": "AWS account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/speech-to-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "sk_3e0e1693a02fbf9d2339efc6c30c77b2ad0f7eb4ccecdc7c"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{$binary.data.mimeType || 'audio/wav'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model_id",
+              "value": "scribe_v1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "tag_audio_events",
+              "value": "true"
+            },
+            {
+              "name": "num_speakers",
+              "value": "2"
+            },
+            {
+              "name": "diarize",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5360,
+        700
+      ],
+      "id": "1d16a982-ecb3-4c4b-9fee-33a2d458c861",
+      "name": "elevanlabs STT",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET processed = true WHERE callid = '{{$json.callid}}'",
+        "options": {}
+      },
+      "id": "6acca2a2-c980-4612-b71a-8cc4190e5a59",
+      "name": "Update Processed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5560,
+        700
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "c8d9b133-53df-4419-9638-dd3d8c25e9aa",
+      "name": "Call Processing Trigger1",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        4760,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = true LIMIT 100",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4960,
+        700
+      ],
+      "id": "b0b34648-7838-4579-8bce-7bf8309effe5",
+      "name": "get calls1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "3bxhfZcxZ2mOzGXp",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Call Processing Trigger": {
+      "main": [
+        [
+          {
+            "node": "get calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get calls": {
+      "main": [
+        [
+          {
+            "node": "get call file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get call file": {
+      "main": [
+        [
+          {
+            "node": "inbound&outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "inbound&outbound": {
+      "main": [
+        [
+          {
+            "node": "Switch folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch folder": {
+      "main": [
+        [
+          {
+            "node": "upload S3 outbound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "upload S3 inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 inbound": {
+      "main": [
+        [
+          {
+            "node": "Update S3 Uploaded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 outbound": {
+      "main": [
+        [
+          {
+            "node": "Update S3 Uploaded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download S3 binary file": {
+      "main": [
+        [
+          {
+            "node": "elevanlabs STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "elevanlabs STT": {
+      "main": [
+        [
+          {
+            "node": "Update Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Processing Trigger1": {
+      "main": [
+        [
+          {
+            "node": "get calls1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get calls1": {
+      "main": [
+        [
+          {
+            "node": "download S3 binary file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

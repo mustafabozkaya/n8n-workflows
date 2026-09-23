@@ -1,0 +1,605 @@
+{
+  "name": "IMPROVED CALL CENTER S3 UPLOAD",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.calls WHERE processed = false AND s3_uploaded = false ORDER BY created_at DESC LIMIT 10",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1984,
+        176
+      ],
+      "id": "f8be3af6-7cd4-4746-b6d5-9c198c3d89c8",
+      "name": "get calls",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// İlk olarak veri doğrulama ve loglama\nconst items = $input.all();\nconsole.log(`[INFO] Processing ${items.length} call records`);\n\nif (items.length === 0) {\n  console.log('[WARNING] No call records found to process');\n  return [];\n}\n\n// Her kayıt için detaylı validation\nconst validatedItems = [];\nconst errorItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const callData = item.json;\n  \n  console.log(`[INFO] Validating call record ${i + 1}/${items.length}:`, {\n    callid: callData.callid,\n    url: callData.url,\n    created_at: callData.created_at\n  });\n  \n  // Zorunlu alanları kontrol et\n  const errors = [];\n  \n  if (!callData.callid) {\n    errors.push('Missing callid');\n  }\n  \n  if (!callData.url || typeof callData.url !== 'string') {\n    errors.push('Missing or invalid URL');\n  }\n  \n  // URL erişilebilirlik kontrolü için format kontrolü\n  if (callData.url && !callData.url.startsWith('http')) {\n    errors.push('Invalid URL format - must start with http/https');\n  }\n  \n  if (errors.length > 0) {\n    console.log(`[ERROR] Call ${callData.callid} validation failed:`, errors);\n    errorItems.push({\n      ...callData,\n      validation_errors: errors,\n      error_timestamp: new Date().toISOString()\n    });\n  } else {\n    console.log(`[SUCCESS] Call ${callData.callid} validation passed`);\n    validatedItems.push(item);\n  }\n}\n\n// Hata kayıtlarını ayrı bir outputa gönder\nif (errorItems.length > 0) {\n  console.log(`[WARNING] ${errorItems.length} records failed validation`);\n  // Bu kayıtları veritabanında error olarak işaretle\n}\n\nconsole.log(`[INFO] ${validatedItems.length} records passed validation`);\nreturn validatedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        176
+      ],
+      "id": "c462f9ed-4488-4197-89f7-8e11034c0c50",
+      "name": "Validate Input Data",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1104,
+        112
+      ],
+      "id": "2536f14a-c586-4afd-b117-9f86233d873a",
+      "name": "get call file",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HTTP isteği sonrası detaylı kontrol ve loglama\nconst item = $input.first();\nconst response = item.json;\n\nconsole.log('[INFO] HTTP Request completed for call:', {\n  callid: response.callid,\n  url: response.url,\n  statusCode: response.$response?.statusCode,\n  contentLength: response.$response?.headers?.['content-length'],\n  contentType: response.$response?.headers?.['content-type']\n});\n\n// HTTP yanıt kontrolü\nif (!response.$response) {\n  console.log('[ERROR] No HTTP response received');\n  throw new Error('HTTP request failed - no response');\n}\n\nconst statusCode = response.$response.statusCode;\nif (statusCode !== 200) {\n  console.log(`[ERROR] HTTP request failed with status ${statusCode}`);\n  throw new Error(`HTTP request failed with status ${statusCode}`);\n}\n\n// Binary data kontrolü\nif (!item.binary || !item.binary.data) {\n  console.log('[ERROR] No binary data received from HTTP request');\n  throw new Error('No audio file data received');\n}\n\nconst binarySize = item.binary.data.data?.length || 0;\nconsole.log(`[SUCCESS] Binary data received: ${binarySize} bytes`);\n\n// Minimum dosya boyutu kontrolü (1KB)\nif (binarySize < 1024) {\n  console.log(`[WARNING] File size suspiciously small: ${binarySize} bytes`);\n}\n\nreturn [item];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        112
+      ],
+      "id": "f6ec266f-a855-46ef-8b17-f1466d38ad1d",
+      "name": "Validate HTTP Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bcb4182e-6894-4c3f-b060-44090ec15e8a",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "status-check",
+              "leftValue": "={{ $json.$response?.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1328,
+        112
+      ],
+      "id": "e8e24dc4-4302-4e9e-ab78-3ebac8af5a76",
+      "name": "If Valid Response",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gelişmiş callDirection belirleme ve loglama\nconst item = $input.first();\nconst fileName = item.json.url || \"\";\nlet callDirection = \"unknown\";\nlet callid = item.json.callid || \"\";\n\nconsole.log(`[INFO] Processing file direction detection for:`, {\n  callid: callid,\n  url: fileName\n});\n\n// URL içinde direction kelimelerini ara (büyük/küçük harf duyarsız)\nconst urlLower = fileName.toLowerCase();\n\nif (urlLower.includes(\"inbound\")) {\n  callDirection = \"inbound\";\n  console.log(`[INFO] Direction detected as INBOUND from URL`);\n} else if (urlLower.includes(\"outbound\")) {\n  callDirection = \"outbound\";\n  console.log(`[INFO] Direction detected as OUTBOUND from URL`);\n} else if (urlLower.includes(\"incoming\")) {\n  callDirection = \"inbound\";\n  console.log(`[INFO] Direction detected as INBOUND (from 'incoming')`);\n} else if (urlLower.includes(\"outgoing\")) {\n  callDirection = \"outbound\";\n  console.log(`[INFO] Direction detected as OUTBOUND (from 'outgoing')`);\n} else {\n  // Varsayılan olarak inbound kabul et ama uyarı ver\n  callDirection = \"inbound\";\n  console.log(`[WARNING] Could not determine call direction from URL, defaulting to INBOUND`);\n}\n\n// CallID doğrulama ve temizleme\nif (!callid || callid.trim() === '') {\n  // URL'den callid çıkarmaya çalış\n  const match = fileName.match(/\\/(([\\w\\-\\.]+)\\.(wav|mp3|m4a))$/i);\n  if (match && match[2]) {\n    callid = match[2];\n    console.log(`[INFO] CallID extracted from URL: ${callid}`);\n  } else {\n    callid = 'unknown-' + Date.now();\n    console.log(`[WARNING] Could not extract CallID, generated: ${callid}`);\n  }\n}\n\n// Dosya formatı kontrolü\nconst supportedFormats = ['.wav', '.mp3', '.m4a'];\nconst hasValidFormat = supportedFormats.some(format => \n  fileName.toLowerCase().includes(format)\n);\n\nif (!hasValidFormat) {\n  console.log(`[WARNING] Unsupported or unknown audio format in: ${fileName}`);\n}\n\nconsole.log(`[SUCCESS] File processing completed:`, {\n  callid: callid,\n  callDirection: callDirection,\n  validFormat: hasValidFormat\n});\n\n// Tüm binary datayı ve json'ı koru, metadata ekle\nreturn [{\n  json: { \n    ...item.json, \n    callDirection,\n    callid: callid,\n    processedAt: new Date().toISOString(),\n    fileFormat: fileName.split('.').pop()?.toLowerCase() || 'unknown'\n  },\n  binary: item.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        112
+      ],
+      "id": "18d6f166-2cca-401a-bec6-6100e5fc8d39",
+      "name": "Enhanced Direction Detection"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "outbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b4f35430-27e7-4d66-9682-e21441adaf0c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "outbound"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "59b084a3-bd37-48a6-b9bc-178497cc0dc9",
+                    "leftValue": "={{ $json.callDirection }}",
+                    "rightValue": "inbound",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -448,
+        112
+      ],
+      "id": "3a7c8ae3-ff4e-479c-bab2-59681e6bb827",
+      "name": "Switch folder"
+    },
+    {
+      "parameters": {
+        "jsCode": "// S3 upload öncesi ön kontrol ve loglama\nconst item = $input.first();\nconst callid = item.json.callid;\nconst callDirection = item.json.callDirection;\n\nconsole.log(`[INFO] Preparing S3 upload for ${callDirection} call:`, {\n  callid: callid,\n  direction: callDirection,\n  hasBinaryData: !!item.binary?.data\n});\n\n// Binary data son kontrolü\nif (!item.binary || !item.binary.data) {\n  console.log(`[ERROR] No binary data available for upload - CallID: ${callid}`);\n  throw new Error(`No binary data for CallID: ${callid}`);\n}\n\n// S3 dosya yolu oluştur\nconst s3Key = `calls/${callDirection}/${callid}.wav`;\nconst s3Path = `s3://callintech/${s3Key}`;\n\nconsole.log(`[INFO] S3 upload details:`, {\n  bucket: 'callintech',\n  key: s3Key,\n  fullPath: s3Path\n});\n\nreturn [{\n  json: {\n    ...item.json,\n    s3Key: s3Key,\n    s3Path: s3Path,\n    uploadAttemptAt: new Date().toISOString()\n  },\n  binary: item.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        112
+      ],
+      "id": "de56c864-9e51-4e78-a21f-32a53d3661d1",
+      "name": "Pre-Upload Preparation"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "callintech",
+        "fileName": "={{ $json.s3Key }}",
+        "additionalFields": {
+          "serverSideEncryption": "AES256",
+          "storageClass": "STANDARD"
+        }
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3c1cee43-20a9-4465-be80-1b628c71c509",
+      "name": "upload S3 outbound",
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "callintech",
+        "fileName": "={{ $json.s3Key }}",
+        "additionalFields": {
+          "serverSideEncryption": "AES256",
+          "storageClass": "STANDARD"
+        }
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ],
+      "id": "e6177081-ea15-41f1-8db9-a45139df0ab6",
+      "name": "upload S3 inbound",
+      "continueOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// S3 upload sonrası detaylı kontrol ve metadata hazırlama\nconst items = $input.all();\nconsole.log(`[INFO] Processing ${items.length} S3 upload results`);\n\nconst processedItems = [];\n\nfor (const item of items) {\n  const callid = item.json.callid;\n  const wasError = !!item.json.error;\n  \n  console.log(`[INFO] Processing S3 result for CallID: ${callid}`);\n  \n  if (wasError) {\n    console.log(`[ERROR] S3 upload failed for CallID ${callid}:`, item.json.error);\n    \n    // Hata durumunda retry bilgisi ekle\n    processedItems.push({\n      json: {\n        ...item.json,\n        s3_uploaded: false,\n        upload_error: item.json.error,\n        upload_failed_at: new Date().toISOString(),\n        retry_count: (item.json.retry_count || 0) + 1\n      }\n    });\n  } else {\n    console.log(`[SUCCESS] S3 upload completed for CallID: ${callid}`);\n    \n    // S3 response'dan Location URL'ini al\n    const s3Location = item.json.Location || item.json.s3Path;\n    \n    processedItems.push({\n      json: {\n        ...item.json,\n        s3_uploaded: true,\n        s3_path: s3Location || item.json.s3Path,\n        file_url: s3Location,\n        uploaded_at: new Date().toISOString(),\n        upload_success: true\n      }\n    });\n  }\n}\n\nconsole.log(`[INFO] Processed ${processedItems.length} upload results`);\nreturn processedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        112
+      ],
+      "id": "152745a3-3a8f-47ef-aa1b-fd7850dcdf0a",
+      "name": "Process Upload Results"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1536,
+        176
+      ],
+      "id": "bb0dff80-248d-40d8-af57-03c7b20e28ab",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.calls SET s3_uploaded = {{ $json.s3_uploaded }}, processed = false, s3_path = '{{ $json.s3_path }}', call_direction = '{{ $json.callDirection }}', file_url = '{{ $json.file_url }}', updated_at = CURRENT_TIMESTAMP, upload_error = '{{ $json.upload_error || '' }}', retry_count = {{ $json.retry_count || 0 }} WHERE callid = '{{ $json.callid }}'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        112
+      ],
+      "id": "eccd7010-5d08-417c-a2ef-04a4fa6fe81b",
+      "name": "Update Calls Status",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Veritabanı güncelleme sonrası final loglama\nconst items = $input.all();\n\nlet successCount = 0;\nlet errorCount = 0;\n\nfor (const item of items) {\n  const callid = item.json.callid;\n  const s3Uploaded = item.json.s3_uploaded;\n  \n  if (s3Uploaded) {\n    successCount++;\n    console.log(`[SUCCESS] CallID ${callid} - Complete workflow success`);\n  } else {\n    errorCount++;\n    console.log(`[ERROR] CallID ${callid} - Workflow completed with errors`);\n  }\n}\n\nconsole.log(`[SUMMARY] Workflow completed:`, {\n  totalProcessed: items.length,\n  successful: successCount,\n  failed: errorCount,\n  timestamp: new Date().toISOString()\n});\n\n// Başarılı kayıtları döndür\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        208
+      ],
+      "id": "9860d28b-a130-4573-920a-3f3d420f53f8",
+      "name": "Final Summary Logging"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.workflow_logs (workflow_name, callid, status, error_message, created_at) VALUES ('CALL_CENTER_S3_UPLOAD', '{{ $json.callid }}', '{{ $json.s3_uploaded ? \"SUCCESS\" : \"ERROR\" }}', '{{ $json.upload_error || \"\" }}', CURRENT_TIMESTAMP)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        672,
+        0
+      ],
+      "id": "ab89bb64-568c-4536-a65f-07457c83f430",
+      "name": "Log to Database",
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-condition",
+              "leftValue": "={{ $json.s3_uploaded }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "retry-count-condition",
+              "leftValue": "={{ $json.retry_count || 0 }}",
+              "rightValue": "3",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        288
+      ],
+      "id": "025404d8-1ed1-475b-aca6-985262f70986",
+      "name": "Check for Retry",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2208,
+        176
+      ],
+      "id": "b56d52e3-33ab-40f2-816c-1f4561a12133",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "get calls": {
+      "main": [
+        [
+          {
+            "node": "Validate Input Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If Valid Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Valid Response": {
+      "main": [
+        [
+          {
+            "node": "get call file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get call file": {
+      "main": [
+        [
+          {
+            "node": "Validate HTTP Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate HTTP Response": {
+      "main": [
+        [
+          {
+            "node": "Enhanced Direction Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhanced Direction Detection": {
+      "main": [
+        [
+          {
+            "node": "Switch folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch folder": {
+      "main": [
+        [
+          {
+            "node": "Pre-Upload Preparation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pre-Upload Preparation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-Upload Preparation": {
+      "main": [
+        [
+          {
+            "node": "upload S3 outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "upload S3 inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 outbound": {
+      "main": [
+        [
+          {
+            "node": "Process Upload Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload S3 inbound": {
+      "main": [
+        [
+          {
+            "node": "Process Upload Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload Results": {
+      "main": [
+        [
+          {
+            "node": "Update Calls Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Calls Status": {
+      "main": [
+        [
+          {
+            "node": "Final Summary Logging",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Summary Logging": {
+      "main": [
+        [
+          {
+            "node": "Check for Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Retry": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "get calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "fc6e5d25-7a86-46fb-937d-31ab54c8d7a1",
+  "meta": {
+    "instanceId": "c098c709e16b3b24d6c4818af649ab067f84dea2f1d5f494e7e74ae5b54c8cb9"
+  },
+  "id": "Uwv6Sc2fMhoZoKrg_WXhe",
+  "tags": []
+}
